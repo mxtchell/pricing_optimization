@@ -471,23 +471,55 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
     # Check if we have enough data for comparison
     if len(summary) < 2:
         print(f"DEBUG: Only {len(summary)} unique value(s) - cannot compare across {dimension}")
-        avg_price = summary['avg_price'].iloc[0] if len(summary) == 1 else 0
-        html = f"""
-        <div style='padding: 30px; text-align: center; background: #fff3cd; border-left: 4px solid #ffc107;'>
-            <h2 style='color: #856404;'>⚠️ Insufficient Data for Comparison</h2>
-            <p style='font-size: 16px;'>Optimization analysis requires multiple {dimension} values to compare.</p>
-            <p style='margin-top: 20px;'>Current filter shows only <strong>{summary[dimension].iloc[0] if len(summary) == 1 else 'no values'}</strong> at <strong>${avg_price:.2f}</strong></p>
-            <p style='margin-top: 20px; font-size: 14px;'><strong>Suggestions:</strong></p>
-            <ul style='text-align: left; display: inline-block; font-size: 14px;'>
-                <li>Remove filters to see all {dimension} values</li>
-                <li>Use "price_comparison" analysis instead to see this {dimension}'s pricing</li>
-                <li>Try a different dimension (e.g., segment, sub_category)</li>
-            </ul>
-        </div>
-        """
+
+        if len(summary) == 1:
+            # Show single item stats instead of error
+            single_item = summary.iloc[0]
+            avg_price = single_item['avg_price']
+            total_revenue = single_item['total_sales']
+            total_units = single_item['total_units']
+
+            html = f"""
+            <div style='padding: 20px; font-family: Arial, sans-serif;'>
+                <h2>{single_item[dimension]} - Pricing Summary</h2>
+                <div style='background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;'>
+                    <p style='margin: 0; font-size: 16px;'><strong>⚠️ Note:</strong> Showing single {dimension} only. Remove filters to compare across multiple {dimension} values.</p>
+                </div>
+
+                <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 20px 0;'>
+                    <div style='background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;'>
+                        <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Average Price</div>
+                        <div style='font-size: 32px; font-weight: bold; color: #007bff;'>${avg_price:.2f}</div>
+                    </div>
+                    <div style='background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;'>
+                        <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Total Revenue</div>
+                        <div style='font-size: 32px; font-weight: bold; color: #28a745;'>${total_revenue:,.0f}</div>
+                    </div>
+                    <div style='background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;'>
+                        <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Total Units</div>
+                        <div style='font-size: 32px; font-weight: bold; color: #6c757d;'>{total_units:,.0f}</div>
+                    </div>
+                </div>
+
+                <div style='margin-top: 30px; padding: 20px; background: #e7f3ff; border-left: 4px solid #007bff;'>
+                    <h3 style='margin-top: 0;'>💡 To See Optimization Opportunities:</h3>
+                    <ul style='margin-bottom: 0; font-size: 15px;'>
+                        <li>Remove the <strong>{dimension}</strong> filter to compare all {dimension} values</li>
+                        <li>Try "price_comparison" to see {single_item[dimension]}'s pricing trends</li>
+                        <li>Try "what_if" to simulate price change impacts for {single_item[dimension]}</li>
+                    </ul>
+                </div>
+            </div>
+            """
+            narrative = f"{single_item[dimension]} has an average price of ${avg_price:.2f} with total revenue of ${total_revenue:,.0f}. To identify optimization opportunities, remove filters to compare across multiple {dimension} values."
+        else:
+            # No data at all
+            html = "<p>No data available for optimization analysis.</p>"
+            narrative = "No data available. Try removing filters."
+
         return SkillOutput(
-            narrative=f"Optimization analysis needs multiple {dimension} values to compare. Currently showing only one value. Try removing filters or using price_comparison analysis.",
-            visualizations=[SkillVisualization(title="Optimization Analysis", layout=html)]
+            narrative=narrative,
+            visualizations=[SkillVisualization(title="Pricing Summary", layout=html)]
         )
 
     # Calculate percentiles
