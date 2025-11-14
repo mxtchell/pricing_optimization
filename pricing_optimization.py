@@ -934,25 +934,14 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
 
     elasticity_df = pd.DataFrame(results).sort_values('elasticity')
 
-    # Create visualization
-    html = f"""
-    <div style='padding: 20px; font-family: Arial, sans-serif;'>
-        <h2>Price Elasticity Analysis</h2>
-        <p style='color: #666;'>Elasticity measures how demand changes with price. Negative = normal (price up, demand down).</p>
+    # Calculate elasticity segments
+    num_elastic = len(elasticity_df[elasticity_df['elasticity'].abs() > 1])
+    num_moderate = len(elasticity_df[(elasticity_df['elasticity'].abs() > 0.5) & (elasticity_df['elasticity'].abs() <= 1)])
+    num_inelastic = len(elasticity_df[elasticity_df['elasticity'].abs() <= 0.5])
 
-        <table style='width: 100%; border-collapse: collapse; margin-top: 20px;'>
-            <thead style='background: #f5f5f5;'>
-                <tr>
-                    <th style='padding: 12px; text-align: left; border-bottom: 2px solid #ddd;'>{dimension.title()}</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Elasticity</th>
-                    <th style='padding: 12px; text-align: left; border-bottom: 2px solid #ddd;'>Interpretation</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Avg Price</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-
-    for _, row in elasticity_df.head(15).iterrows():
+    # Build table rows
+    table_rows = []
+    for idx, (_, row) in enumerate(elasticity_df.head(15).iterrows()):
         elasticity = row['elasticity']
 
         if abs(elasticity) > 1:
@@ -965,29 +954,281 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
             interpretation = "Inelastic (price insensitive)"
             color = '#28a745'
 
-        html += f"""
-                <tr style='border-bottom: 1px solid #eee;'>
-                    <td style='padding: 12px;'><strong>{row[dimension]}</strong></td>
-                    <td style='padding: 12px; text-align: right; color: {color};'><strong>{elasticity:.2f}</strong></td>
-                    <td style='padding: 12px; color: {color};'>{interpretation}</td>
-                    <td style='padding: 12px; text-align: right;'>${row['avg_price']:.2f}</td>
-                </tr>
-        """
+        table_rows.extend([
+            {
+                "name": f"Row{idx}_Name",
+                "type": "Paragraph",
+                "children": "",
+                "text": str(row[dimension]),
+                "parentId": "ElasticityTable",
+                "style": {"padding": "12px", "fontWeight": "bold"}
+            },
+            {
+                "name": f"Row{idx}_Elasticity",
+                "type": "Paragraph",
+                "children": "",
+                "text": f"{elasticity:.2f}",
+                "parentId": "ElasticityTable",
+                "style": {"padding": "12px", "textAlign": "right", "color": color, "fontWeight": "bold"}
+            },
+            {
+                "name": f"Row{idx}_Interpretation",
+                "type": "Paragraph",
+                "children": "",
+                "text": interpretation,
+                "parentId": "ElasticityTable",
+                "style": {"padding": "12px", "color": color}
+            },
+            {
+                "name": f"Row{idx}_Price",
+                "type": "Paragraph",
+                "children": "",
+                "text": f"${row['avg_price']:.2f}",
+                "parentId": "ElasticityTable",
+                "style": {"padding": "12px", "textAlign": "right"}
+            }
+        ])
 
-    html += """
-            </tbody>
-        </table>
+    # Create structured layout
+    elasticity_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"backgroundColor": "#ffffff", "padding": "20px"},
+            "children": [
+                # Banner
+                {
+                    "name": "Banner",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "background": "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+                        "padding": "30px",
+                        "borderRadius": "12px",
+                        "marginBottom": "25px",
+                        "boxShadow": "0 4px 6px rgba(0,0,0,0.1)"
+                    }
+                },
+                {
+                    "name": "BannerTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Price Elasticity Analysis",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "28px", "fontWeight": "bold", "color": "#333", "marginBottom": "10px"}
+                },
+                {
+                    "name": "BannerSubtitle",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Elasticity measures how demand changes with price. Negative = normal (price up, demand down)",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "16px", "color": "#555"}
+                },
+                # KPI Cards Row
+                {
+                    "name": "KPI_Row",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "row",
+                    "extraStyles": "gap: 15px; margin-bottom: 25px;"
+                },
+                # KPI Card 1: Elastic
+                {
+                    "name": "KPI_Card1",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#f8d7da",
+                        "borderLeft": "4px solid #dc3545",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI1_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Elastic (|E| > 1)",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI1_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{num_elastic}",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#dc3545"}
+                },
+                # KPI Card 2: Moderate
+                {
+                    "name": "KPI_Card2",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#fff3cd",
+                        "borderLeft": "4px solid #ffc107",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI2_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Moderate (0.5-1)",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI2_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{num_moderate}",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#ffc107"}
+                },
+                # KPI Card 3: Inelastic
+                {
+                    "name": "KPI_Card3",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#d4edda",
+                        "borderLeft": "4px solid #28a745",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI3_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Inelastic (|E| < 0.5)",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI3_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{num_inelastic}",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#28a745"}
+                },
+                # Table Section
+                {
+                    "name": "TableTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Elasticity by Product",
+                    "style": {"fontSize": "20px", "fontWeight": "bold", "marginBottom": "15px"}
+                },
+                {
+                    "name": "ElasticityTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 2fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 25px;"
+                },
+                # Table Headers
+                {
+                    "name": "Header_Name",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": dimension.replace('_', ' ').title(),
+                    "parentId": "ElasticityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
+                },
+                {
+                    "name": "Header_Elasticity",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Elasticity",
+                    "parentId": "ElasticityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "Header_Interpretation",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Interpretation",
+                    "parentId": "ElasticityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
+                },
+                {
+                    "name": "Header_Price",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Avg Price",
+                    "parentId": "ElasticityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                }
+            ] + table_rows + [
+                # Guide Section
+                {
+                    "name": "GuideContainer",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "padding": "20px",
+                        "backgroundColor": "#f8f9fa",
+                        "borderLeft": "4px solid #007bff",
+                        "borderRadius": "8px"
+                    }
+                },
+                {
+                    "name": "GuideTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Price Elasticity Guide",
+                    "parentId": "GuideContainer",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px", "marginTop": "0"}
+                },
+                {
+                    "name": "Guide1",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Elastic (|E| > 1): Demand very sensitive to price. Small price increase → large demand drop.",
+                    "parentId": "GuideContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Guide2",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Inelastic (|E| < 1): Demand less sensitive to price. Price increases have limited impact on volume.",
+                    "parentId": "GuideContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Guide3",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Recommendation: Increase prices on inelastic products, be cautious with elastic products.",
+                    "parentId": "GuideContainer",
+                    "style": {"fontSize": "15px", "fontWeight": "bold"}
+                }
+            ]
+        },
+        "inputVariables": []
+    }
 
-        <div style='margin-top: 30px; padding: 15px; background: #f8f9fa; border-left: 4px solid #007bff;'>
-            <h3 style='margin-top: 0;'>Price Elasticity Guide:</h3>
-            <ul style='margin-bottom: 0;'>
-                <li><strong>Elastic (|E| > 1):</strong> Demand very sensitive to price. Small price increase → large demand drop.</li>
-                <li><strong>Inelastic (|E| < 1):</strong> Demand less sensitive to price. Price increases have limited impact on volume.</li>
-                <li><strong>Recommendation:</strong> Increase prices on inelastic products, be cautious with elastic products.</li>
-            </ul>
-        </div>
-    </div>
-    """
+    html = wire_layout(elasticity_layout, {})
 
     return SkillOutput(
         final_prompt="Price elasticity analysis shows which products are most sensitive to price changes.",
@@ -1498,69 +1739,233 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
         "credits": {"enabled": False}
     }
 
-    # Create KPI cards for overall impact
-    kpi_html = f"""
-    <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 20px 0;'>
-        <div style='background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;'>
-            <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Current Revenue</div>
-            <div style='font-size: 28px; font-weight: bold; color: #495057;'>${total_current:,.0f}</div>
-        </div>
-        <div style='background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;'>
-            <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Projected Revenue</div>
-            <div style='font-size: 28px; font-weight: bold; color: {"#28a745" if total_change > 0 else "#dc3545"};'>${total_projected:,.0f}</div>
-        </div>
-        <div style='background: {"#d4edda" if total_change > 0 else "#f8d7da"}; padding: 20px; border-radius: 8px; text-align: center;'>
-            <div style='color: #666; font-size: 14px; margin-bottom: 8px;'>Net Impact</div>
-            <div style='font-size: 28px; font-weight: bold; color: {"#155724" if total_change > 0 else "#721c24"};'>
-                {'+' if total_change > 0 else ''}${total_change:,.0f}
-            </div>
-            <div style='font-size: 16px; color: {"#155724" if total_change > 0 else "#721c24"}; margin-top: 4px;'>
-                ({total_change_pct:+.1f}%)
-            </div>
-        </div>
-    </div>
-    """
+    # Create structured layout with banner, KPI cards, chart, and assumptions
+    volume_impact = assumed_elasticity * price_change_pct
 
-    # Add assumptions panel
-    assumptions_html = f"""
-    <div style='margin-top: 20px; padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107;'>
-        <h3 style='margin-top: 0;'>⚠️ Important Assumptions:</h3>
-        <ul style='margin-bottom: 0; font-size: 15px;'>
-            <li>Assumes price elasticity of <strong>{assumed_elasticity}</strong> (typical for CPG products)</li>
-            <li>Elasticity varies by product: premium brands typically less elastic than value brands</li>
-            <li>Does not account for competitive response or market share shifts</li>
-            <li>Volume impact: <strong>{assumed_elasticity * price_change_pct:.1f}%</strong> change expected</li>
-            <li><strong>Recommendation:</strong> Pilot test price changes before full rollout</li>
-        </ul>
-    </div>
-    """
-
-    # Render just the chart with wire_layout, then append HTML
-    chart_layout = {
+    whatif_layout = {
         "layoutJson": {
-            "sections": [{
-                "layout": "vertical",
-                "sections": [{
-                    "layout": "chart",
-                    "chart_data": chart_config
-                }]
-            }]
+            "type": "Document",
+            "style": {"backgroundColor": "#ffffff", "padding": "20px"},
+            "children": [
+                # Banner
+                {
+                    "name": "Banner",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "background": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                        "padding": "30px",
+                        "borderRadius": "12px",
+                        "marginBottom": "25px",
+                        "boxShadow": "0 4px 6px rgba(0,0,0,0.1)"
+                    }
+                },
+                {
+                    "name": "BannerTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": f"What-If Analysis: {abs(price_change_pct):.0f}% Price {direction.title()}",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "28px", "fontWeight": "bold", "color": "white", "marginBottom": "10px"}
+                },
+                {
+                    "name": "BannerSubtitle",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"Simulating revenue impact across {len(categories)} {dimension.replace('_', ' ')} values",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "16px", "color": "rgba(255,255,255,0.9)"}
+                },
+                # KPI Cards Row
+                {
+                    "name": "KPI_Row",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "row",
+                    "extraStyles": "gap: 15px; margin-bottom: 25px;"
+                },
+                # KPI Card 1: Current Revenue
+                {
+                    "name": "KPI_Card1",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#f8f9fa",
+                        "borderLeft": "4px solid #6c757d",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI1_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Current Revenue",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI1_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${total_current/1000000:.1f}M" if total_current > 1000000 else f"${total_current:,.0f}",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#495057"}
+                },
+                # KPI Card 2: Projected Revenue
+                {
+                    "name": "KPI_Card2",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#f8f9fa",
+                        "borderLeft": f"4px solid {'#28a745' if total_change > 0 else '#dc3545'}",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI2_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Projected Revenue",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI2_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${total_projected/1000000:.1f}M" if total_projected > 1000000 else f"${total_projected:,.0f}",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#28a745" if total_change > 0 else "#dc3545"}
+                },
+                # KPI Card 3: Net Impact
+                {
+                    "name": "KPI_Card3",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#d4edda" if total_change > 0 else "#f8d7da",
+                        "borderLeft": f"4px solid {'#155724' if total_change > 0 else '#721c24'}",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI3_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Net Impact",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI3_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{'+' if total_change > 0 else ''}${total_change/1000000:.2f}M" if abs(total_change) > 1000000 else f"{'+' if total_change > 0 else ''}${total_change:,.0f}",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#155724" if total_change > 0 else "#721c24"}
+                },
+                {
+                    "name": "KPI3_Subtitle",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"({total_change_pct:+.1f}%)",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "16px", "color": "#155724" if total_change > 0 else "#721c24", "marginTop": "4px"}
+                },
+                # Chart
+                {
+                    "name": "RevenueChart",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "minHeight": "500px",
+                    "options": chart_config
+                },
+                # Assumptions Section
+                {
+                    "name": "AssumptionsContainer",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "padding": "20px",
+                        "backgroundColor": "#fff3cd",
+                        "borderLeft": "4px solid #ffc107",
+                        "borderRadius": "8px",
+                        "marginTop": "25px"
+                    }
+                },
+                {
+                    "name": "AssumptionsTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "⚠️ Important Assumptions",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px", "marginTop": "0"}
+                },
+                {
+                    "name": "Assumption1",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"• Assumes price elasticity of {assumed_elasticity} (typical for CPG products)",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Assumption2",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Elasticity varies by product: premium brands typically less elastic than value brands",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Assumption3",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Does not account for competitive response or market share shifts",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Assumption4",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"• Volume impact: {volume_impact:.1f}% change expected",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "15px", "marginBottom": "8px"}
+                },
+                {
+                    "name": "Assumption5",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "• Recommendation: Pilot test price changes before full rollout",
+                    "parentId": "AssumptionsContainer",
+                    "style": {"fontSize": "15px", "fontWeight": "bold"}
+                }
+            ]
         },
         "inputVariables": []
     }
 
-    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
-    try:
-        chart_html = wire_layout(chart_layout, {})
-        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
-        # Combine KPIs, chart, and assumptions as HTML
-        full_html = kpi_html + chart_html + assumptions_html
-    except Exception as e:
-        print(f"DEBUG: wire_layout failed: {e}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        # Fallback to HTML without chart if wire_layout fails
-        full_html = f"{kpi_html}<p>Error rendering chart: {str(e)}</p>{assumptions_html}"
+    print(f"DEBUG: Creating what-if layout with {len(categories)} categories")
+    full_html = wire_layout(whatif_layout, {})
 
     recommendation = "positive" if total_change > 0 else "negative"
     narrative = f"A {abs(price_change_pct):.0f}% price {direction} would have an estimated {recommendation} revenue impact of ${abs(total_change):,.0f} ({abs(total_change_pct):.1f}%), assuming moderate price elasticity of {assumed_elasticity}."
