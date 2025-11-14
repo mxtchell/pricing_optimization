@@ -274,28 +274,9 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         </div>
         """
 
-        layout = {
-            "layoutJson": {
-                "sections": [{
-                    "layout": "vertical",
-                    "sections": [{
-                        "layout": "html",
-                        "html": kpi_html
-                    }]
-                }]
-            },
-            "inputVariables": []
-        }
-
-        print(f"DEBUG: Creating KPI layout with wire_layout")
-        try:
-            full_html = wire_layout(layout, {})
-            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
-        except Exception as e:
-            print(f"DEBUG: wire_layout failed: {e}")
-            import traceback
-            print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            full_html = kpi_html
+        # Don't use wire_layout for simple HTML - just pass it directly
+        print(f"DEBUG: Using raw HTML for KPI layout (no wire_layout)")
+        full_html = kpi_html
 
     else:
         # Multiple items - use Highcharts bar chart
@@ -358,21 +339,15 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         </div>
         """
 
-        # Create layout with chart and insights in sections
-        layout = {
+        # Render just the chart with wire_layout, then append HTML
+        chart_layout = {
             "layoutJson": {
                 "sections": [{
                     "layout": "vertical",
-                    "sections": [
-                        {
-                            "layout": "chart",
-                            "chart_data": chart_config
-                        },
-                        {
-                            "layout": "html",
-                            "html": insights_html
-                        }
-                    ]
+                    "sections": [{
+                        "layout": "chart",
+                        "chart_data": chart_config
+                    }]
                 }]
             },
             "inputVariables": []
@@ -380,13 +355,15 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
         print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
         try:
-            full_html = wire_layout(layout, {})
-            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+            chart_html = wire_layout(chart_layout, {})
+            print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
+            # Append insights as raw HTML after chart
+            full_html = chart_html + insights_html
         except Exception as e:
             print(f"DEBUG: wire_layout failed: {e}")
             import traceback
             print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            # Fallback to simple HTML if wire_layout fails
+            # Fallback to just insights HTML if chart fails
             full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
 
     # Generate narrative using LLM
@@ -820,25 +797,15 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
     </div>
     """
 
-    # Create layout with KPIs, chart, and assumptions in sections
-    layout = {
+    # Render just the chart with wire_layout, then append HTML
+    chart_layout = {
         "layoutJson": {
             "sections": [{
                 "layout": "vertical",
-                "sections": [
-                    {
-                        "layout": "html",
-                        "html": kpi_html
-                    },
-                    {
-                        "layout": "chart",
-                        "chart_data": chart_config
-                    },
-                    {
-                        "layout": "html",
-                        "html": assumptions_html
-                    }
-                ]
+                "sections": [{
+                    "layout": "chart",
+                    "chart_data": chart_config
+                }]
             }]
         },
         "inputVariables": []
@@ -846,13 +813,15 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
     try:
-        full_html = wire_layout(layout, {})
-        print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+        chart_html = wire_layout(chart_layout, {})
+        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
+        # Combine KPIs, chart, and assumptions as HTML
+        full_html = kpi_html + chart_html + assumptions_html
     except Exception as e:
         print(f"DEBUG: wire_layout failed: {e}")
         import traceback
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        # Fallback to simple HTML if wire_layout fails
+        # Fallback to HTML without chart if wire_layout fails
         full_html = f"{kpi_html}<p>Error rendering chart: {str(e)}</p>{assumptions_html}"
 
     recommendation = "positive" if total_change > 0 else "negative"
