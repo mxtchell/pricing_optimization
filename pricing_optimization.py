@@ -131,7 +131,8 @@ def pricing_optimization(parameters: SkillInput):
             error_msg = result.error if hasattr(result, 'error') else 'Unknown error'
             print(f"DEBUG: Query failed: {error_msg}")
             return SkillOutput(
-                narrative=f"Failed to retrieve pricing data: {error_msg}",
+                final_prompt=f"Failed to retrieve pricing data: {error_msg}",
+                narrative=None,
                 visualizations=[SkillVisualization(
                     title="Error",
                     layout=f"<p>Unable to load pricing data: {error_msg}</p>"
@@ -173,7 +174,8 @@ def pricing_optimization(parameters: SkillInput):
             """
             print(f"DEBUG: No data returned. Filters: {filters}, Dates: {start_date} to {end_date}")
             return SkillOutput(
-                narrative=f"No pricing data found for {dimension} with the specified filters and date range.",
+                final_prompt=f"No pricing data found for {dimension} with the specified filters and date range.",
+                narrative=None,
                 visualizations=[SkillVisualization(
                     title="No Data",
                     layout=no_data_html
@@ -200,7 +202,8 @@ def pricing_optimization(parameters: SkillInput):
         traceback.print_exc()
 
         return SkillOutput(
-            narrative=f"Error: {str(e)}",
+            final_prompt=f"Error: {str(e)}",
+            narrative=None,
             visualizations=[SkillVisualization(
                 title="Error",
                 layout=f"<p>An error occurred: {str(e)}</p>"
@@ -414,7 +417,8 @@ Provide a brief executive summary (2-3 sentences) about the pricing landscape an
     print(f"DEBUG: Final narrative: {narrative[:100]}...")
 
     return SkillOutput(
-        narrative=narrative,
+        final_prompt=narrative,
+        narrative=None,
         visualizations=[
             SkillVisualization(title="Price Comparison", layout=full_html)
         ]
@@ -462,7 +466,8 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
     if not results:
         html = "<p>Insufficient data to calculate price elasticity. Need more price variation over time.</p>"
         return SkillOutput(
-            narrative="Unable to calculate price elasticity with current data.",
+            final_prompt="Unable to calculate price elasticity with current data.",
+            narrative=None,
             visualizations=[SkillVisualization(title="Price Elasticity", layout=html)]
         )
 
@@ -524,7 +529,8 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
     """
 
     return SkillOutput(
-        narrative="Price elasticity analysis shows which products are most sensitive to price changes.",
+        final_prompt="Price elasticity analysis shows which products are most sensitive to price changes.",
+        narrative=None,
         visualizations=[SkillVisualization(title="Price Elasticity", layout=html)]
     )
 
@@ -596,7 +602,8 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
             narrative = "No data available. Try removing filters."
 
         return SkillOutput(
-            narrative=narrative,
+            final_prompt=narrative,
+            narrative=None,
             visualizations=[SkillVisualization(title="Pricing Summary", layout=html)]
         )
 
@@ -681,7 +688,8 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
     """
 
     return SkillOutput(
-        narrative="Analysis identifies products with potential for revenue optimization through strategic pricing adjustments.",
+        final_prompt="Analysis identifies products with potential for revenue optimization through strategic pricing adjustments.",
+        narrative=None,
         visualizations=[SkillVisualization(title="Optimization Opportunities", layout=html)]
     )
 
@@ -849,7 +857,8 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
     narrative = f"A {abs(price_change_pct):.0f}% price {direction} would have an estimated {recommendation} revenue impact of ${abs(total_change):,.0f} ({abs(total_change_pct):.1f}%), assuming moderate price elasticity of {assumed_elasticity}."
 
     return SkillOutput(
-        narrative=narrative,
+        final_prompt=narrative,
+        narrative=None,
         visualizations=[SkillVisualization(title="What-If Analysis", layout=full_html)]
     )
 
