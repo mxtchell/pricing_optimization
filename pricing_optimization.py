@@ -246,29 +246,131 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         # Single item - show KPI cards instead of chart (Highcharts struggles with 1 bar)
         print(f"DEBUG: Single item detected, using KPI card layout instead of chart")
 
-        # Use extremely simple HTML - no fancy styling that might break widget
-        kpi_html = f"""
-<h2>{highest[dimension]} - Pricing Summary</h2>
+        # Use structured JSON layout like Price Variance Deep Dive does
+        print(f"DEBUG: Creating structured JSON layout for single brand")
 
-<table border="1" cellpadding="10" style="width: 100%; border-collapse: collapse;">
-    <tr>
-        <th>Average Price</th>
-        <th>Total Revenue</th>
-        <th>Total Units</th>
-    </tr>
-    <tr>
-        <td style="text-align: center; font-size: 24px;"><strong>${highest['avg_price']:.2f}</strong></td>
-        <td style="text-align: center; font-size: 24px;"><strong>${highest['total_sales']/1000000:.1f}M</strong></td>
-        <td style="text-align: center; font-size: 24px;"><strong>{highest['total_units']/1000000:.1f}M</strong></td>
-    </tr>
-</table>
+        kpi_layout = {
+            "layoutJson": {
+                "type": "Document",
+                "style": {
+                    "backgroundColor": "#ffffff",
+                    "padding": "20px"
+                },
+                "children": [
+                    {
+                        "type": "Header",
+                        "text": f"{highest[dimension]} - Pricing Summary",
+                        "style": {
+                            "fontSize": "24px",
+                            "fontWeight": "bold",
+                            "marginBottom": "20px"
+                        }
+                    },
+                    {
+                        "type": "FlexContainer",
+                        "direction": "row",
+                        "style": {
+                            "gap": "20px",
+                            "marginBottom": "20px"
+                        },
+                        "children": [
+                            {
+                                "type": "FlexContainer",
+                                "direction": "column",
+                                "style": {
+                                    "flex": "1",
+                                    "padding": "20px",
+                                    "backgroundColor": "#f8f9fa",
+                                    "borderRadius": "8px",
+                                    "textAlign": "center"
+                                },
+                                "children": [
+                                    {
+                                        "type": "Paragraph",
+                                        "text": "Average Price",
+                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
+                                    },
+                                    {
+                                        "type": "Paragraph",
+                                        "text": f"${highest['avg_price']:.2f}",
+                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "FlexContainer",
+                                "direction": "column",
+                                "style": {
+                                    "flex": "1",
+                                    "padding": "20px",
+                                    "backgroundColor": "#f8f9fa",
+                                    "borderRadius": "8px",
+                                    "textAlign": "center"
+                                },
+                                "children": [
+                                    {
+                                        "type": "Paragraph",
+                                        "text": "Total Revenue",
+                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
+                                    },
+                                    {
+                                        "type": "Paragraph",
+                                        "text": f"${highest['total_sales']/1000000:.1f}M",
+                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "FlexContainer",
+                                "direction": "column",
+                                "style": {
+                                    "flex": "1",
+                                    "padding": "20px",
+                                    "backgroundColor": "#f8f9fa",
+                                    "borderRadius": "8px",
+                                    "textAlign": "center"
+                                },
+                                "children": [
+                                    {
+                                        "type": "Paragraph",
+                                        "text": "Total Units",
+                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
+                                    },
+                                    {
+                                        "type": "Paragraph",
+                                        "text": f"{highest['total_units']/1000000:.1f}M",
+                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "Paragraph",
+                        "text": f"Note: Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values.",
+                        "style": {
+                            "fontSize": "14px",
+                            "padding": "15px",
+                            "backgroundColor": "#fff3cd",
+                            "borderLeft": "4px solid #ffc107"
+                        }
+                    }
+                ]
+            },
+            "inputVariables": []
+        }
 
-<p><strong>Note:</strong> Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values.</p>
-        """
-
-        # Don't use wire_layout for simple HTML - just pass it directly
-        print(f"DEBUG: Using raw HTML for KPI layout (no wire_layout)")
-        full_html = kpi_html
+        # Use wire_layout with the structured JSON layout
+        print(f"DEBUG: Calling wire_layout with structured JSON layout")
+        try:
+            full_html = wire_layout(kpi_layout, {})
+            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+        except Exception as e:
+            print(f"DEBUG: wire_layout failed: {e}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            # Fallback to simple text
+            full_html = f"<p>{highest[dimension]}: ${highest['avg_price']:.2f}, Revenue: ${highest['total_sales']:,.0f}, Units: {highest['total_units']:,.0f}</p>"
 
     else:
         # Multiple items - use Highcharts bar chart
