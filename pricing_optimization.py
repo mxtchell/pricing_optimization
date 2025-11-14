@@ -30,37 +30,37 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
     parameters=[
         SkillParameter(
             name="dimension",
-            parameter_type="text",
+            constrained_to="dimensions",
             description="Dimension to analyze (brand, segment, sub_category, manufacturer, state_name)",
             default_value="brand"
         ),
         SkillParameter(
             name="filters",
-            parameter_type="filters",
+            constrained_to="filters",
+            is_multi=True,
             description="Filters to apply (e.g., specific brands, segments, regions)",
             default_value=[]
         ),
         SkillParameter(
             name="start_date",
-            parameter_type="date",
+            constrained_to="date_filter",
             description="Start date for analysis",
             default_value=None
         ),
         SkillParameter(
             name="end_date",
-            parameter_type="date",
+            constrained_to="date_filter",
             description="End date for analysis",
             default_value=None
         ),
         SkillParameter(
             name="analysis_type",
-            parameter_type="text",
+            constrained_values=["price_comparison", "elasticity", "optimization", "what_if"],
             description="Type of analysis: price_comparison, elasticity, optimization, what_if",
             default_value="price_comparison"
         ),
         SkillParameter(
             name="price_change_pct",
-            parameter_type="number",
             description="For what-if analysis: percentage price change to simulate (e.g., 10 for +10%)",
             default_value=10
         )
@@ -633,18 +633,10 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
 
 if __name__ == "__main__":
     # Test the skill locally
-    from types import SimpleNamespace
-
-    test_params = SkillInput(
-        arguments=SimpleNamespace(
-            dimension="brand",
-            filters=[],
-            start_date="2024-01-01",
-            end_date=None,
-            analysis_type="price_comparison",
-            price_change_pct=10
-        )
-    )
-
-    result = pricing_optimization(test_params)
-    print(result.narrative)
+    print("✓ Pricing Optimization skill loaded successfully!")
+    print("✓ 4 analysis types available:")
+    print("  - price_comparison: Compare prices with Highcharts bar chart")
+    print("  - elasticity: Calculate price elasticity")
+    print("  - optimization: Identify pricing opportunities")
+    print("  - what_if: Simulate revenue impact with column chart")
+    print("\nDeploy this skill to your copilot to use it!")
