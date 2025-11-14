@@ -426,7 +426,7 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "type": "HighchartsChart",
                         "children": "",
                         "minHeight": "350px",
-                        "chartOptions": {
+                        "options": {
                             "chart": {"type": "line", "height": 350},
                             "title": {"text": "Price Trend Over Time", "style": {"fontSize": "18px", "fontWeight": "bold"}},
                             "xAxis": {"categories": months, "title": {"text": "Month"}},
@@ -446,7 +446,7 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "type": "HighchartsChart",
                         "children": "",
                         "minHeight": "350px",
-                        "chartOptions": {
+                        "options": {
                             "chart": {"type": "area", "height": 350},
                             "title": {"text": "Revenue Trend Over Time", "style": {"fontSize": "18px", "fontWeight": "bold"}},
                             "xAxis": {"categories": months, "title": {"text": "Month"}},
