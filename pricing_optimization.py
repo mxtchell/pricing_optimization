@@ -248,6 +248,11 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
         # Use the original df which has monthly data (not the aggregated summary)
         brand_df = df[df[dimension] == highest[dimension]].copy()
+
+        # Convert month_new to datetime if it's not already
+        if not pd.api.types.is_datetime64_any_dtype(brand_df['month_new']):
+            brand_df['month_new'] = pd.to_datetime(brand_df['month_new'])
+
         brand_df = brand_df.sort_values('month_new')
 
         # Calculate monthly price
