@@ -345,8 +345,16 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
 
     # Generate narrative using LLM
-    ar_utils = ArUtils()
-    narrative_prompt = f"""Based on this pricing analysis by {dimension}:
+    print(f"DEBUG: Generating narrative for {len(summary)} {dimension} value(s)")
+
+    if len(summary) == 1:
+        # Single item - simpler narrative
+        narrative = f"{highest[dimension]} has an average price of ${highest['avg_price']:.2f} with total revenue of ${highest['total_sales']:,.0f} and {highest['total_units']:,.0f} units sold. Remove filters to compare against other {dimension} values."
+        print(f"DEBUG: Using simple narrative for single item")
+    else:
+        # Multiple items - use LLM for richer narrative
+        ar_utils = ArUtils()
+        narrative_prompt = f"""Based on this pricing analysis by {dimension}:
 
 - Market average price: ${overall_avg:.2f}
 - Highest priced: {highest[dimension]} at ${highest['avg_price']:.2f} (+{highest['price_vs_avg']:.1f}% vs market)
@@ -355,7 +363,15 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
 Provide a brief executive summary (2-3 sentences) about the pricing landscape and what it suggests about market positioning."""
 
-    narrative = ar_utils.get_llm_response(narrative_prompt) or "Price comparison analysis complete."
+        print(f"DEBUG: Calling ArUtils.get_llm_response for narrative")
+        try:
+            narrative = ar_utils.get_llm_response(narrative_prompt) or f"Price comparison shows {len(summary)} {dimension} values ranging from ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}, with an average of ${overall_avg:.2f}."
+            print(f"DEBUG: LLM narrative generated, length: {len(narrative)}")
+        except Exception as e:
+            print(f"DEBUG: LLM narrative failed: {e}")
+            narrative = f"Price comparison shows {len(summary)} {dimension} values ranging from ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}, with an average of ${overall_avg:.2f}."
+
+    print(f"DEBUG: Final narrative: {narrative[:100]}...")
 
     return SkillOutput(
         narrative=narrative,
