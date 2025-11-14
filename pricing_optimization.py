@@ -586,51 +586,94 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
             "credits": {"enabled": False}
         }
 
-        # Multiple items - show comparison insights
-        insights_html = f"""
-        <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
-            <h3 style='margin-top: 0;'>💡 Key Insights:</h3>
-            <ul style='margin-bottom: 0; font-size: 16px;'>
-                <li><strong>{highest[dimension]}</strong> commands highest price at <strong>${highest['avg_price']:.2f}</strong> ({highest['price_vs_avg']:+.1f}% vs market)</li>
-                <li><strong>{lowest[dimension]}</strong> has lowest price at <strong>${lowest['avg_price']:.2f}</strong> ({lowest['price_vs_avg']:+.1f}% vs market)</li>
-                <li>Price spread: <strong>${(highest['avg_price'] - lowest['avg_price']):.2f}</strong> ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)</li>
-            </ul>
-            <div style='margin-top: 15px; padding: 10px; background: white; border-radius: 4px;'>
-                <strong>Color Legend:</strong>
-                <span style='color: #dc3545;'>● Significantly Below Average</span> |
-                <span style='color: #ffc107;'>● Below Average</span> |
-                <span style='color: #17a2b8;'>● Market Average</span> |
-                <span style='color: #28a745;'>● Premium Pricing</span>
-            </div>
-        </div>
-        """
-
-        # Render just the chart with wire_layout, then append HTML
-        chart_layout = {
+        # Use structured layout with HighchartsChart component
+        comparison_layout = {
             "layoutJson": {
-                "sections": [{
-                    "layout": "vertical",
-                    "sections": [{
-                        "layout": "chart",
-                        "chart_data": chart_config
-                    }]
-                }]
+                "type": "Document",
+                "style": {"backgroundColor": "#ffffff", "padding": "20px"},
+                "children": [
+                    {
+                        "name": "ComparisonChart",
+                        "type": "HighchartsChart",
+                        "children": "",
+                        "minHeight": "500px",
+                        "options": chart_config
+                    },
+                    {
+                        "name": "InsightsContainer",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "style": {
+                            "padding": "20px",
+                            "backgroundColor": "#f8f9fa",
+                            "borderLeft": "4px solid #007bff",
+                            "marginTop": "20px",
+                            "borderRadius": "8px"
+                        }
+                    },
+                    {
+                        "name": "InsightsTitle",
+                        "type": "Header",
+                        "children": "",
+                        "text": "💡 Key Insights",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px"}
+                    },
+                    {
+                        "name": "Insight1",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• {highest[dimension]} commands highest price at ${highest['avg_price']:.2f} ({highest['price_vs_avg']:+.1f}% vs market)",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "Insight2",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• {lowest[dimension]} has lowest price at ${lowest['avg_price']:.2f} ({lowest['price_vs_avg']:+.1f}% vs market)",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "Insight3",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• Price spread: ${(highest['avg_price'] - lowest['avg_price']):.2f} ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "15px"}
+                    },
+                    {
+                        "name": "ColorLegend",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Color Legend: Red = Significantly Below Average | Yellow = Below Average | Teal = Market Average | Green = Premium Pricing",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "13px", "color": "#666", "padding": "10px", "backgroundColor": "white", "borderRadius": "4px"}
+                    }
+                ]
             },
             "inputVariables": []
         }
 
-        print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
+        print(f"DEBUG: Creating structured comparison layout, {len(categories)} categories")
         try:
-            chart_html = wire_layout(chart_layout, {})
-            print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
-            # Append insights as raw HTML after chart
-            full_html = chart_html + insights_html
+            full_html = wire_layout(comparison_layout, {})
+            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
         except Exception as e:
             print(f"DEBUG: wire_layout failed: {e}")
             import traceback
             print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            # Fallback to just insights HTML if chart fails
-            full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
+            # Fallback to simple message
+            fallback_layout = {
+                "layoutJson": {
+                    "type": "Document",
+                    "children": [{"type": "Paragraph", "children": "", "text": f"Error rendering chart: {str(e)}"}]
+                },
+                "inputVariables": []
+            }
+            full_html = wire_layout(fallback_layout, {})
 
     # Generate narrative using LLM
     print(f"DEBUG: Generating narrative for {len(summary)} {dimension} value(s)")
