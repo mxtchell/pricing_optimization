@@ -243,11 +243,29 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
     # Handle single vs. multiple items differently
     if len(summary) == 1:
-        # Single item - show KPI cards instead of chart (Highcharts struggles with 1 bar)
-        print(f"DEBUG: Single item detected, using KPI card layout instead of chart")
+        # Single item - show rich time-series analysis with charts
+        print(f"DEBUG: Single item detected, creating time-series dashboard")
+
+        # Use the original df which has monthly data (not the aggregated summary)
+        brand_df = df[df[dimension] == highest[dimension]].copy()
+        brand_df = brand_df.sort_values('month_new')
+
+        # Calculate monthly price
+        brand_df['price'] = brand_df['total_sales'] / brand_df['total_units']
+
+        # Get time series data
+        months = brand_df['month_new'].dt.strftime('%b').tolist()  # Jan, Feb, etc
+        prices = brand_df['price'].round(2).tolist()
+        revenues = (brand_df['total_sales'] / 1000000).round(1).tolist()  # In millions
+
+        # Calculate trends
+        price_change = ((prices[-1] - prices[0]) / prices[0] * 100)
+        revenue_change = ((revenues[-1] - revenues[0]) / revenues[0] * 100)
+
+        print(f"DEBUG: Time series - {len(months)} months, price trend: {price_change:+.1f}%")
 
         # Use flat structure with parentId like Price Variance Deep Dive
-        print(f"DEBUG: Creating flat JSON layout with parentId references")
+        print(f"DEBUG: Creating rich dashboard with charts")
 
         kpi_layout = {
             "layoutJson": {
@@ -305,6 +323,18 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
                     },
                     {
+                        "name": "KPI1_Trend",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{'↑' if price_change > 0 else '↓'} {abs(price_change):.1f}% vs start",
+                        "parentId": "KPI_Card1",
+                        "style": {
+                            "fontSize": "13px",
+                            "color": "#10b981" if price_change > 0 else "#ef4444",
+                            "marginTop": "5px"
+                        }
+                    },
+                    {
                         "name": "KPI_Card2",
                         "type": "FlexContainer",
                         "children": "",
@@ -332,6 +362,18 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "text": f"${highest['total_sales']/1000000:.1f}M",
                         "parentId": "KPI_Card2",
                         "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
+                    },
+                    {
+                        "name": "KPI2_Trend",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{'↑' if revenue_change > 0 else '↓'} {abs(revenue_change):.1f}% trend",
+                        "parentId": "KPI_Card2",
+                        "style": {
+                            "fontSize": "13px",
+                            "color": "#10b981" if revenue_change > 0 else "#ef4444",
+                            "marginTop": "5px"
+                        }
                     },
                     {
                         "name": "KPI_Card3",
@@ -363,15 +405,121 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
                     },
                     {
+                        "name": "KPI3_Trend",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"Across {len(months)} months",
+                        "parentId": "KPI_Card3",
+                        "style": {
+                            "fontSize": "13px",
+                            "color": "#666",
+                            "marginTop": "5px"
+                        }
+                    },
+                    {
+                        "name": "PriceTrendChart",
+                        "type": "HighchartsChart",
+                        "children": "",
+                        "minHeight": "350px",
+                        "chartOptions": {
+                            "chart": {"type": "line", "height": 350},
+                            "title": {"text": "Price Trend Over Time", "style": {"fontSize": "18px", "fontWeight": "bold"}},
+                            "xAxis": {"categories": months, "title": {"text": "Month"}},
+                            "yAxis": {"title": {"text": "Price ($)"}, "labels": {"format": "${value}"}},
+                            "series": [{
+                                "name": "Average Price",
+                                "data": prices,
+                                "color": "#3b82f6",
+                                "marker": {"enabled": True, "radius": 4}
+                            }],
+                            "tooltip": {"valuePrefix": "$", "valueDecimals": 2},
+                            "credits": {"enabled": False}
+                        }
+                    },
+                    {
+                        "name": "RevenueTrendChart",
+                        "type": "HighchartsChart",
+                        "children": "",
+                        "minHeight": "350px",
+                        "chartOptions": {
+                            "chart": {"type": "area", "height": 350},
+                            "title": {"text": "Revenue Trend Over Time", "style": {"fontSize": "18px", "fontWeight": "bold"}},
+                            "xAxis": {"categories": months, "title": {"text": "Month"}},
+                            "yAxis": {"title": {"text": "Revenue ($M)"}, "labels": {"format": "${value}M"}},
+                            "series": [{
+                                "name": "Monthly Revenue",
+                                "data": revenues,
+                                "color": "#10b981",
+                                "fillOpacity": 0.3
+                            }],
+                            "tooltip": {"valueSuffix": "M", "valuePrefix": "$"},
+                            "credits": {"enabled": False}
+                        }
+                    },
+                    {
+                        "name": "InsightsContainer",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "style": {
+                            "padding": "20px",
+                            "backgroundColor": "#f8f9fa",
+                            "borderRadius": "8px",
+                            "borderLeft": "4px solid #3b82f6",
+                            "marginTop": "20px"
+                        }
+                    },
+                    {
+                        "name": "InsightsTitle",
+                        "type": "Header",
+                        "children": "",
+                        "text": "📊 Key Insights",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px"}
+                    },
+                    {
+                        "name": "Insight1",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• Price {'increased' if price_change > 0 else 'decreased'} by {abs(price_change):.1f}% from {months[0]} (${prices[0]:.2f}) to {months[-1]} (${prices[-1]:.2f})",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "Insight2",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• Revenue {'grew' if revenue_change > 0 else 'declined'} by {abs(revenue_change):.1f}% over the period",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "Insight3",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• Highest price month: {months[prices.index(max(prices))]} (${max(prices):.2f})",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "Insight4",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"• Lowest price month: {months[prices.index(min(prices))]} (${min(prices):.2f})",
+                        "parentId": "InsightsContainer",
+                        "style": {"fontSize": "15px", "marginBottom": "10px"}
+                    },
+                    {
                         "name": "Note",
                         "type": "Paragraph",
                         "children": "",
-                        "text": f"Note: Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values.",
+                        "text": f"💡 Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values",
                         "style": {
                             "fontSize": "14px",
                             "padding": "15px",
                             "backgroundColor": "#fff3cd",
-                            "borderLeft": "4px solid #ffc107"
+                            "borderLeft": "4px solid #ffc107",
+                            "marginTop": "20px"
                         }
                     }
                 ]
