@@ -250,24 +250,26 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         <div style='padding: 20px; font-family: Arial, sans-serif;'>
             <h2 style='margin-top: 0;'>{highest[dimension]} - Pricing Summary</h2>
 
-            <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 30px 0;'>
-                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Average Price</div>
-                    <div style='font-size: 48px; font-weight: bold; color: white;'>${highest['avg_price']:.2f}</div>
-                </div>
-                <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Total Revenue</div>
-                    <div style='font-size: 48px; font-weight: bold; color: white;'>${highest['total_sales']/1000000:.1f}M</div>
-                </div>
-                <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Total Units</div>
-                    <div style='font-size: 48px; font-weight: bold; color: white;'>{highest['total_units']/1000000:.1f}M</div>
-                </div>
-            </div>
+            <table style='width: 100%; border-collapse: separate; border-spacing: 15px; margin: 20px 0;'>
+                <tr>
+                    <td style='background: #667eea; padding: 30px; text-align: center; border-radius: 8px;'>
+                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>AVERAGE PRICE</div>
+                        <div style='font-size: 42px; font-weight: bold; color: white;'>${highest['avg_price']:.2f}</div>
+                    </td>
+                    <td style='background: #f093fb; padding: 30px; text-align: center; border-radius: 8px;'>
+                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>TOTAL REVENUE</div>
+                        <div style='font-size: 42px; font-weight: bold; color: white;'>${highest['total_sales']/1000000:.1f}M</div>
+                    </td>
+                    <td style='background: #4facfe; padding: 30px; text-align: center; border-radius: 8px;'>
+                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>TOTAL UNITS</div>
+                        <div style='font-size: 42px; font-weight: bold; color: white;'>{highest['total_units']/1000000:.1f}M</div>
+                    </td>
+                </tr>
+            </table>
 
-            <div style='margin-top: 30px; padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>
-                <h3 style='margin-top: 0; color: #856404;'>💡 To See Price Comparison Chart:</h3>
-                <p style='margin-bottom: 0; font-size: 16px; color: #856404;'>Remove the <strong>{dimension}</strong> filter to compare <strong>{highest[dimension]}</strong> against other {dimension} values in an interactive Highcharts visualization.</p>
+            <div style='margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107;'>
+                <strong>💡 To See Price Comparison Chart:</strong>
+                <p style='margin: 10px 0 0 0;'>Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values in an interactive Highcharts visualization.</p>
             </div>
         </div>
         """
