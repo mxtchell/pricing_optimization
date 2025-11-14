@@ -246,32 +246,24 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         # Single item - show KPI cards instead of chart (Highcharts struggles with 1 bar)
         print(f"DEBUG: Single item detected, using KPI card layout instead of chart")
 
+        # Use extremely simple HTML - no fancy styling that might break widget
         kpi_html = f"""
-        <div style='padding: 20px; font-family: Arial, sans-serif;'>
-            <h2 style='margin-top: 0;'>{highest[dimension]} - Pricing Summary</h2>
+<h2>{highest[dimension]} - Pricing Summary</h2>
 
-            <table style='width: 100%; border-collapse: separate; border-spacing: 15px; margin: 20px 0;'>
-                <tr>
-                    <td style='background: #667eea; padding: 30px; text-align: center; border-radius: 8px;'>
-                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>AVERAGE PRICE</div>
-                        <div style='font-size: 42px; font-weight: bold; color: white;'>${highest['avg_price']:.2f}</div>
-                    </td>
-                    <td style='background: #f093fb; padding: 30px; text-align: center; border-radius: 8px;'>
-                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>TOTAL REVENUE</div>
-                        <div style='font-size: 42px; font-weight: bold; color: white;'>${highest['total_sales']/1000000:.1f}M</div>
-                    </td>
-                    <td style='background: #4facfe; padding: 30px; text-align: center; border-radius: 8px;'>
-                        <div style='color: white; font-size: 14px; margin-bottom: 10px;'>TOTAL UNITS</div>
-                        <div style='font-size: 42px; font-weight: bold; color: white;'>{highest['total_units']/1000000:.1f}M</div>
-                    </td>
-                </tr>
-            </table>
+<table border="1" cellpadding="10" style="width: 100%; border-collapse: collapse;">
+    <tr>
+        <th>Average Price</th>
+        <th>Total Revenue</th>
+        <th>Total Units</th>
+    </tr>
+    <tr>
+        <td style="text-align: center; font-size: 24px;"><strong>${highest['avg_price']:.2f}</strong></td>
+        <td style="text-align: center; font-size: 24px;"><strong>${highest['total_sales']/1000000:.1f}M</strong></td>
+        <td style="text-align: center; font-size: 24px;"><strong>{highest['total_units']/1000000:.1f}M</strong></td>
+    </tr>
+</table>
 
-            <div style='margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107;'>
-                <strong>💡 To See Price Comparison Chart:</strong>
-                <p style='margin: 10px 0 0 0;'>Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values in an interactive Highcharts visualization.</p>
-            </div>
-        </div>
+<p><strong>Note:</strong> Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values.</p>
         """
 
         # Don't use wire_layout for simple HTML - just pass it directly
