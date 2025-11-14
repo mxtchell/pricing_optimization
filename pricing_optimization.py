@@ -273,15 +273,61 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         "credits": {"enabled": False}
     }
 
-    # Create layout using wire_layout
+    # Add insights section
+    highest = summary.iloc[-1]  # Last item (highest price)
+    lowest = summary.iloc[0]   # First item (lowest price)
+
+    # Create insights HTML based on number of items
+    if len(summary) == 1:
+        # Single item - show different insights
+        insights_html = f"""
+        <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
+            <h3 style='margin-top: 0;'>💡 Key Insights:</h3>
+            <ul style='margin-bottom: 0; font-size: 16px;'>
+                <li><strong>{highest[dimension]}</strong> average price: <strong>${highest['avg_price']:.2f}</strong></li>
+                <li>Total revenue: <strong>${highest['total_sales']:,.0f}</strong></li>
+                <li>Total units sold: <strong>{highest['total_units']:,.0f}</strong></li>
+            </ul>
+            <div style='margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;'>
+                <strong>💡 Tip:</strong> Remove filters to compare <strong>{highest[dimension]}</strong> against other {dimension} values.
+            </div>
+        </div>
+        """
+    else:
+        # Multiple items - show comparison insights
+        insights_html = f"""
+        <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
+            <h3 style='margin-top: 0;'>💡 Key Insights:</h3>
+            <ul style='margin-bottom: 0; font-size: 16px;'>
+                <li><strong>{highest[dimension]}</strong> commands highest price at <strong>${highest['avg_price']:.2f}</strong> ({highest['price_vs_avg']:+.1f}% vs market)</li>
+                <li><strong>{lowest[dimension]}</strong> has lowest price at <strong>${lowest['avg_price']:.2f}</strong> ({lowest['price_vs_avg']:+.1f}% vs market)</li>
+                <li>Price spread: <strong>${(highest['avg_price'] - lowest['avg_price']):.2f}</strong> ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)</li>
+            </ul>
+            <div style='margin-top: 15px; padding: 10px; background: white; border-radius: 4px;'>
+                <strong>Color Legend:</strong>
+                <span style='color: #dc3545;'>● Significantly Below Average</span> |
+                <span style='color: #ffc107;'>● Below Average</span> |
+                <span style='color: #17a2b8;'>● Market Average</span> |
+                <span style='color: #28a745;'>● Premium Pricing</span>
+            </div>
+        </div>
+        """
+
+    # Create layout with chart and insights in sections
     layout = {
         "layoutJson": {
             "sections": [{
                 "layout": "vertical",
-                "sections": [{
-                    "layout": "chart",
-                    "chart_data": chart_config
-                }]
+                "sections": [
+                    {
+                        "layout": "chart",
+                        "chart_data": chart_config
+                    },
+                    {
+                        "layout": "html",
+                        "html": insights_html
+                    }
+                ]
             }]
         },
         "inputVariables": []
@@ -289,38 +335,14 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
     try:
-        chart_html = wire_layout(layout, {})
-        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
+        full_html = wire_layout(layout, {})
+        print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
     except Exception as e:
         print(f"DEBUG: wire_layout failed: {e}")
         import traceback
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
         # Fallback to simple HTML if wire_layout fails
-        chart_html = f"<p>Error rendering chart: {str(e)}</p>"
-
-    # Add insights section
-    highest = summary.iloc[-1]  # Last item (highest price)
-    lowest = summary.iloc[0]   # First item (lowest price)
-
-    insights_html = f"""
-    <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
-        <h3 style='margin-top: 0;'>💡 Key Insights:</h3>
-        <ul style='margin-bottom: 0; font-size: 16px;'>
-            <li><strong>{highest[dimension]}</strong> commands highest price at <strong>${highest['avg_price']:.2f}</strong> ({highest['price_vs_avg']:+.1f}% vs market)</li>
-            <li><strong>{lowest[dimension]}</strong> has lowest price at <strong>${lowest['avg_price']:.2f}</strong> ({lowest['price_vs_avg']:+.1f}% vs market)</li>
-            <li>Price spread: <strong>${(highest['avg_price'] - lowest['avg_price']):.2f}</strong> ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)</li>
-        </ul>
-        <div style='margin-top: 15px; padding: 10px; background: white; border-radius: 4px;'>
-            <strong>Color Legend:</strong>
-            <span style='color: #dc3545;'>● Significantly Below Average</span> |
-            <span style='color: #ffc107;'>● Below Average</span> |
-            <span style='color: #17a2b8;'>● Market Average</span> |
-            <span style='color: #28a745;'>● Premium Pricing</span>
-        </div>
-    </div>
-    """
-
-    full_html = chart_html + insights_html
+        full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
 
     # Generate narrative using LLM
     ar_utils = ArUtils()
@@ -695,31 +717,6 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
         "credits": {"enabled": False}
     }
 
-    # Create layout using wire_layout
-    layout = {
-        "layoutJson": {
-            "sections": [{
-                "layout": "vertical",
-                "sections": [{
-                    "layout": "chart",
-                    "chart_data": chart_config
-                }]
-            }]
-        },
-        "inputVariables": []
-    }
-
-    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
-    try:
-        chart_html = wire_layout(layout, {})
-        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
-    except Exception as e:
-        print(f"DEBUG: wire_layout failed: {e}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        # Fallback to simple HTML if wire_layout fails
-        chart_html = f"<p>Error rendering chart: {str(e)}</p>"
-
     # Create KPI cards for overall impact
     kpi_html = f"""
     <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 20px 0;'>
@@ -757,7 +754,40 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
     </div>
     """
 
-    full_html = kpi_html + chart_html + assumptions_html
+    # Create layout with KPIs, chart, and assumptions in sections
+    layout = {
+        "layoutJson": {
+            "sections": [{
+                "layout": "vertical",
+                "sections": [
+                    {
+                        "layout": "html",
+                        "html": kpi_html
+                    },
+                    {
+                        "layout": "chart",
+                        "chart_data": chart_config
+                    },
+                    {
+                        "layout": "html",
+                        "html": assumptions_html
+                    }
+                ]
+            }]
+        },
+        "inputVariables": []
+    }
+
+    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
+    try:
+        full_html = wire_layout(layout, {})
+        print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+    except Exception as e:
+        print(f"DEBUG: wire_layout failed: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        # Fallback to simple HTML if wire_layout fails
+        full_html = f"{kpi_html}<p>Error rendering chart: {str(e)}</p>{assumptions_html}"
 
     recommendation = "positive" if total_change > 0 else "negative"
     narrative = f"A {abs(price_change_pct):.0f}% price {direction} would have an estimated {recommendation} revenue impact of ${abs(total_change):,.0f} ({abs(total_change_pct):.1f}%), assuming moderate price elasticity of {assumed_elasticity}."
