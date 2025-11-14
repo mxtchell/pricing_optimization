@@ -1067,63 +1067,342 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
 
     summary = summary.sort_values('potential_revenue_lift', ascending=False)
 
-    # Create visualization
-    html = f"""
-    <div style='padding: 20px; font-family: Arial, sans-serif;'>
-        <h2>Pricing Optimization Opportunities</h2>
-        <p style='color: #666;'>Market median price: <strong>${median:.2f}</strong></p>
-
-        <h3 style='margin-top: 30px;'>Price Increase Opportunities</h3>
-        <table style='width: 100%; border-collapse: collapse;'>
-            <thead style='background: #f5f5f5;'>
-                <tr>
-                    <th style='padding: 12px; text-align: left; border-bottom: 2px solid #ddd;'>{dimension.title()}</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Current Price</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Market Median</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Units</th>
-                    <th style='padding: 12px; text-align: right; border-bottom: 2px solid #ddd;'>Potential Lift</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-
     opportunities = summary[summary['opportunity'] == 'Price Increase Potential'].head(10)
+    total_lift = opportunities['potential_revenue_lift'].sum() if len(opportunities) > 0 else 0
 
+    # Calculate market-level KPIs
+    total_market_revenue = summary['total_sales'].sum()
+    total_market_units = summary['total_units'].sum()
+    num_items = len(summary)
+    num_opportunities = len(opportunities)
+
+    # Build table rows for opportunities
+    table_rows = []
     if len(opportunities) == 0:
-        html += "<tr><td colspan='5' style='padding: 12px; text-align: center; color: #666;'>No clear price increase opportunities identified</td></tr>"
+        table_rows.append({
+            "name": f"NoOpps",
+            "type": "Paragraph",
+            "children": "",
+            "text": "No clear price increase opportunities identified",
+            "parentId": "OpportunityTable",
+            "style": {"padding": "12px", "textAlign": "center", "color": "#666", "gridColumn": "1 / -1"}
+        })
     else:
-        for _, row in opportunities.iterrows():
-            html += f"""
-                    <tr style='border-bottom: 1px solid #eee;'>
-                        <td style='padding: 12px;'><strong>{row[dimension]}</strong></td>
-                        <td style='padding: 12px; text-align: right;'>${row['avg_price']:.2f}</td>
-                        <td style='padding: 12px; text-align: right;'>${median:.2f}</td>
-                        <td style='padding: 12px; text-align: right;'>{row['total_units']:,.0f}</td>
-                        <td style='padding: 12px; text-align: right; color: #28a745;'><strong>${row['potential_revenue_lift']:,.0f}</strong></td>
-                    </tr>
-            """
+        for idx, (_, row) in enumerate(opportunities.iterrows()):
+            table_rows.extend([
+                {
+                    "name": f"Row{idx}_Name",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": str(row[dimension]),
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "fontWeight": "bold"}
+                },
+                {
+                    "name": f"Row{idx}_Current",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${row['avg_price']:.2f}",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "textAlign": "right"}
+                },
+                {
+                    "name": f"Row{idx}_Median",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${median:.2f}",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "textAlign": "right"}
+                },
+                {
+                    "name": f"Row{idx}_Units",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{row['total_units']:,.0f}",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "textAlign": "right"}
+                },
+                {
+                    "name": f"Row{idx}_Lift",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${row['potential_revenue_lift']:,.0f}",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "textAlign": "right", "color": "#28a745", "fontWeight": "bold"}
+                }
+            ])
 
-    html += """
-            </tbody>
-        </table>
-
-        <div style='margin-top: 30px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107;'>
-            <h3 style='margin-top: 0;'>💡 Recommendation:</h3>
-    """
-
+    # Recommendation text
     if len(opportunities) > 0:
-        total_lift = opportunities['potential_revenue_lift'].sum()
-        html += f"""
-            <p>Consider gradual price increases for underpriced high-volume products. Potential revenue lift: <strong>${total_lift:,.0f}</strong></p>
-            <p><strong>Next Steps:</strong> Test 5-10% price increases, monitor volume impact, adjust based on customer response.</p>
-        """
+        recommendation = f"Consider gradual price increases for underpriced high-volume products. Potential revenue lift: ${total_lift:,.0f}. Next Steps: Test 5-10% price increases, monitor volume impact, adjust based on customer response."
     else:
-        html += "<p>Pricing appears well-optimized relative to market. Focus on maintaining position and monitoring competition.</p>"
+        recommendation = "Pricing appears well-optimized relative to market. Focus on maintaining position and monitoring competition."
 
-    html += """
-        </div>
-    </div>
-    """
+    # Create structured layout with banner, KPI cards, table, and insights
+    optimization_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"backgroundColor": "#ffffff", "padding": "20px"},
+            "children": [
+                # Banner
+                {
+                    "name": "Banner",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "background": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                        "padding": "30px",
+                        "borderRadius": "12px",
+                        "marginBottom": "25px",
+                        "boxShadow": "0 4px 6px rgba(0,0,0,0.1)"
+                    }
+                },
+                {
+                    "name": "BannerTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": f"Pricing Optimization Opportunities",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "28px", "fontWeight": "bold", "color": "white", "marginBottom": "10px"}
+                },
+                {
+                    "name": "BannerSubtitle",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"Analyzing {num_items} {dimension.replace('_', ' ')} values • Market median: ${median:.2f}",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "16px", "color": "rgba(255,255,255,0.9)"}
+                },
+                # KPI Cards Row
+                {
+                    "name": "KPI_Row",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "row",
+                    "extraStyles": "gap: 15px; margin-bottom: 25px;"
+                },
+                # KPI Card 1: Median Price
+                {
+                    "name": "KPI_Card1",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#e3f2fd",
+                        "borderLeft": "4px solid #2196f3",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI1_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Market Median Price",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI1_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${median:.2f}",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#1976d2"}
+                },
+                # KPI Card 2: Total Revenue
+                {
+                    "name": "KPI_Card2",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#e8f5e9",
+                        "borderLeft": "4px solid #4caf50",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI2_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Total Revenue",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI2_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${total_market_revenue/1000000:.1f}M",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#388e3c"}
+                },
+                # KPI Card 3: Opportunities
+                {
+                    "name": "KPI_Card3",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#fff3e0",
+                        "borderLeft": "4px solid #ff9800",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI3_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Opportunities Found",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI3_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{num_opportunities}",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#f57c00"}
+                },
+                # KPI Card 4: Potential Lift
+                {
+                    "name": "KPI_Card4",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#fce4ec",
+                        "borderLeft": "4px solid #e91e63",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI4_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Potential Revenue Lift",
+                    "parentId": "KPI_Card4",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI4_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"${total_lift/1000000:.2f}M" if total_lift > 1000000 else f"${total_lift:,.0f}",
+                    "parentId": "KPI_Card4",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#c2185b"}
+                },
+                # Table Section
+                {
+                    "name": "TableTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Price Increase Opportunities",
+                    "style": {"fontSize": "20px", "fontWeight": "bold", "marginBottom": "15px"}
+                },
+                {
+                    "name": "OpportunityTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": f"display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 25px;"
+                },
+                # Table Headers
+                {
+                    "name": "Header_Name",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": dimension.replace('_', ' ').title(),
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
+                },
+                {
+                    "name": "Header_Current",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Current Price",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "Header_Median",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Market Median",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "Header_Units",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Units",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "Header_Lift",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Potential Lift",
+                    "parentId": "OpportunityTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                }
+            ] + table_rows + [
+                # Recommendation Section
+                {
+                    "name": "RecommendationContainer",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "padding": "20px",
+                        "backgroundColor": "#fff3cd",
+                        "borderLeft": "4px solid #ffc107",
+                        "borderRadius": "8px"
+                    }
+                },
+                {
+                    "name": "RecommendationTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": "💡 Recommendation",
+                    "parentId": "RecommendationContainer",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "10px", "marginTop": "0"}
+                },
+                {
+                    "name": "RecommendationText",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": recommendation,
+                    "parentId": "RecommendationContainer",
+                    "style": {"fontSize": "15px", "lineHeight": "1.6", "marginBottom": "0"}
+                }
+            ]
+        },
+        "inputVariables": []
+    }
+
+    print(f"DEBUG: Creating optimization layout with {num_opportunities} opportunities")
+    html = wire_layout(optimization_layout, {})
 
     return SkillOutput(
         final_prompt="Analysis identifies products with potential for revenue optimization through strategic pricing adjustments.",
