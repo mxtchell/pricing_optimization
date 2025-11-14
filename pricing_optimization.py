@@ -586,12 +586,184 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
             "credits": {"enabled": False}
         }
 
-        # Use structured layout with HighchartsChart component
+        # Calculate market-level KPIs
+        total_market_revenue = summary['total_sales'].sum()
+        total_market_units = summary['total_units'].sum()
+        num_items = len(summary)
+
+        # Use structured layout with banner, KPI cards, chart, and insights
         comparison_layout = {
             "layoutJson": {
                 "type": "Document",
                 "style": {"backgroundColor": "#ffffff", "padding": "20px"},
                 "children": [
+                    # Banner
+                    {
+                        "name": "Banner",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "style": {
+                            "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                            "padding": "30px",
+                            "borderRadius": "12px",
+                            "marginBottom": "25px",
+                            "boxShadow": "0 4px 6px rgba(0,0,0,0.1)"
+                        }
+                    },
+                    {
+                        "name": "BannerTitle",
+                        "type": "Header",
+                        "children": "",
+                        "text": f"Pricing Analysis: {dimension.replace('_', ' ').title()}",
+                        "parentId": "Banner",
+                        "style": {"fontSize": "28px", "fontWeight": "bold", "color": "white", "marginBottom": "10px"}
+                    },
+                    {
+                        "name": "BannerSubtitle",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"Comparing {num_items} {dimension.replace('_', ' ')} values across the market",
+                        "parentId": "Banner",
+                        "style": {"fontSize": "16px", "color": "rgba(255,255,255,0.9)"}
+                    },
+                    # KPI Cards Row
+                    {
+                        "name": "KPI_Row",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "row",
+                        "extraStyles": "gap: 15px; margin-bottom: 25px;"
+                    },
+                    # KPI Card 1: Average Price
+                    {
+                        "name": "KPI_Card1",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "flex": "1",
+                            "padding": "20px",
+                            "backgroundColor": "#e3f2fd",
+                            "borderLeft": "4px solid #2196f3",
+                            "borderRadius": "8px",
+                            "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                        }
+                    },
+                    {
+                        "name": "KPI1_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Average Market Price",
+                        "parentId": "KPI_Card1",
+                        "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                    },
+                    {
+                        "name": "KPI1_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${overall_avg:.2f}",
+                        "parentId": "KPI_Card1",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#1976d2"}
+                    },
+                    # KPI Card 2: Total Revenue
+                    {
+                        "name": "KPI_Card2",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "flex": "1",
+                            "padding": "20px",
+                            "backgroundColor": "#e8f5e9",
+                            "borderLeft": "4px solid #4caf50",
+                            "borderRadius": "8px",
+                            "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                        }
+                    },
+                    {
+                        "name": "KPI2_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Total Market Revenue",
+                        "parentId": "KPI_Card2",
+                        "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                    },
+                    {
+                        "name": "KPI2_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${total_market_revenue/1000000:.1f}M",
+                        "parentId": "KPI_Card2",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#388e3c"}
+                    },
+                    # KPI Card 3: Total Units
+                    {
+                        "name": "KPI_Card3",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "flex": "1",
+                            "padding": "20px",
+                            "backgroundColor": "#fff3e0",
+                            "borderLeft": "4px solid #ff9800",
+                            "borderRadius": "8px",
+                            "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                        }
+                    },
+                    {
+                        "name": "KPI3_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Total Market Units",
+                        "parentId": "KPI_Card3",
+                        "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                    },
+                    {
+                        "name": "KPI3_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{total_market_units/1000000:.1f}M",
+                        "parentId": "KPI_Card3",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#f57c00"}
+                    },
+                    # KPI Card 4: Number of Items
+                    {
+                        "name": "KPI_Card4",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "flex": "1",
+                            "padding": "20px",
+                            "backgroundColor": "#fce4ec",
+                            "borderLeft": "4px solid #e91e63",
+                            "borderRadius": "8px",
+                            "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                        }
+                    },
+                    {
+                        "name": "KPI4_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{dimension.replace('_', ' ').title()} Values",
+                        "parentId": "KPI_Card4",
+                        "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                    },
+                    {
+                        "name": "KPI4_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{num_items}",
+                        "parentId": "KPI_Card4",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#c2185b"}
+                    },
+                    # Comparison Chart
                     {
                         "name": "ComparisonChart",
                         "type": "HighchartsChart",
@@ -599,6 +771,7 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "minHeight": "500px",
                         "options": chart_config
                     },
+                    # Insights Container
                     {
                         "name": "InsightsContainer",
                         "type": "FlexContainer",
