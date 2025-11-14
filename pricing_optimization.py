@@ -275,13 +275,16 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
     # Create layout using wire_layout
     layout = {
-        "sections": [{
-            "layout": "vertical",
+        "layoutJson": {
             "sections": [{
-                "layout": "chart",
-                "chart_data": chart_config
+                "layout": "vertical",
+                "sections": [{
+                    "layout": "chart",
+                    "chart_data": chart_config
+                }]
             }]
-        }]
+        },
+        "inputVariables": {}
     }
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
@@ -625,13 +628,16 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
 
     # Create layout using wire_layout
     layout = {
-        "sections": [{
-            "layout": "vertical",
+        "layoutJson": {
             "sections": [{
-                "layout": "chart",
-                "chart_data": chart_config
+                "layout": "vertical",
+                "sections": [{
+                    "layout": "chart",
+                    "chart_data": chart_config
+                }]
             }]
-        }]
+        },
+        "inputVariables": {}
     }
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
