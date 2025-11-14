@@ -234,66 +234,106 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
 
     print(f"DEBUG: Overall average price: ${overall_avg:.2f}")
 
-    # Create Highcharts bar chart
-    categories = summary[dimension].tolist()
-    prices = summary['avg_price'].round(2).tolist()
-
-    # Color bars based on price vs average
-    colors = ['#dc3545' if pva < -10 else '#ffc107' if pva < 0 else '#28a745' if pva > 10 else '#17a2b8'
-              for pva in summary['price_vs_avg']]
-
-    chart_config = {
-        "chart": {"type": "bar", "height": 500},
-        "title": {"text": f"Price Comparison by {dimension.title()}", "style": {"fontSize": "20px", "fontWeight": "bold"}},
-        "subtitle": {"text": f"Average market price: ${overall_avg:.2f}"},
-        "xAxis": {
-            "categories": categories,
-            "title": {"text": dimension.title()}
-        },
-        "yAxis": {
-            "min": 0,
-            "title": {"text": "Average Price ($)"},
-            "labels": {"format": "${value:.2f}"}
-        },
-        "plotOptions": {
-            "bar": {
-                "dataLabels": {
-                    "enabled": True,
-                    "format": "${point.y:.2f}"
-                },
-                "colorByPoint": True
-            }
-        },
-        "colors": colors,
-        "legend": {"enabled": False},
-        "series": [{
-            "name": "Average Price",
-            "data": prices
-        }],
-        "credits": {"enabled": False}
-    }
-
     # Add insights section
     highest = summary.iloc[-1]  # Last item (highest price)
     lowest = summary.iloc[0]   # First item (lowest price)
 
-    # Create insights HTML based on number of items
+    # Handle single vs. multiple items differently
     if len(summary) == 1:
-        # Single item - show different insights
-        insights_html = f"""
-        <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
-            <h3 style='margin-top: 0;'>💡 Key Insights:</h3>
-            <ul style='margin-bottom: 0; font-size: 16px;'>
-                <li><strong>{highest[dimension]}</strong> average price: <strong>${highest['avg_price']:.2f}</strong></li>
-                <li>Total revenue: <strong>${highest['total_sales']:,.0f}</strong></li>
-                <li>Total units sold: <strong>{highest['total_units']:,.0f}</strong></li>
-            </ul>
-            <div style='margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;'>
-                <strong>💡 Tip:</strong> Remove filters to compare <strong>{highest[dimension]}</strong> against other {dimension} values.
+        # Single item - show KPI cards instead of chart (Highcharts struggles with 1 bar)
+        print(f"DEBUG: Single item detected, using KPI card layout instead of chart")
+
+        kpi_html = f"""
+        <div style='padding: 20px; font-family: Arial, sans-serif;'>
+            <h2 style='margin-top: 0;'>{highest[dimension]} - Pricing Summary</h2>
+
+            <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 30px 0;'>
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Average Price</div>
+                    <div style='font-size: 48px; font-weight: bold; color: white;'>${highest['avg_price']:.2f}</div>
+                </div>
+                <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Total Revenue</div>
+                    <div style='font-size: 48px; font-weight: bold; color: white;'>${highest['total_sales']/1000000:.1f}M</div>
+                </div>
+                <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                    <div style='color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;'>Total Units</div>
+                    <div style='font-size: 48px; font-weight: bold; color: white;'>{highest['total_units']/1000000:.1f}M</div>
+                </div>
+            </div>
+
+            <div style='margin-top: 30px; padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>
+                <h3 style='margin-top: 0; color: #856404;'>💡 To See Price Comparison Chart:</h3>
+                <p style='margin-bottom: 0; font-size: 16px; color: #856404;'>Remove the <strong>{dimension}</strong> filter to compare <strong>{highest[dimension]}</strong> against other {dimension} values in an interactive Highcharts visualization.</p>
             </div>
         </div>
         """
+
+        layout = {
+            "layoutJson": {
+                "sections": [{
+                    "layout": "vertical",
+                    "sections": [{
+                        "layout": "html",
+                        "html": kpi_html
+                    }]
+                }]
+            },
+            "inputVariables": []
+        }
+
+        print(f"DEBUG: Creating KPI layout with wire_layout")
+        try:
+            full_html = wire_layout(layout, {})
+            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+        except Exception as e:
+            print(f"DEBUG: wire_layout failed: {e}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            full_html = kpi_html
+
     else:
+        # Multiple items - use Highcharts bar chart
+        print(f"DEBUG: Multiple items detected, creating Highcharts bar chart")
+
+        categories = summary[dimension].tolist()
+        prices = summary['avg_price'].round(2).tolist()
+
+        # Color bars based on price vs average
+        colors = ['#dc3545' if pva < -10 else '#ffc107' if pva < 0 else '#28a745' if pva > 10 else '#17a2b8'
+                  for pva in summary['price_vs_avg']]
+
+        chart_config = {
+            "chart": {"type": "bar", "height": 500},
+            "title": {"text": f"Price Comparison by {dimension.title()}", "style": {"fontSize": "20px", "fontWeight": "bold"}},
+            "subtitle": {"text": f"Average market price: ${overall_avg:.2f}"},
+            "xAxis": {
+                "categories": categories,
+                "title": {"text": dimension.title()}
+            },
+            "yAxis": {
+                "min": 0,
+                "title": {"text": "Average Price ($)"},
+                "labels": {"format": "${value:.2f}"}
+            },
+            "plotOptions": {
+                "bar": {
+                    "dataLabels": {
+                        "enabled": True,
+                        "format": "${point.y:.2f}"
+                    },
+                    "colorByPoint": True
+                }
+            },
+            "colors": colors,
+            "legend": {"enabled": False},
+            "series": [{
+                "name": "Average Price",
+                "data": prices
+            }],
+            "credits": {"enabled": False}
+        }
+
         # Multiple items - show comparison insights
         insights_html = f"""
         <div style='padding: 20px; background: #f8f9fa; border-left: 4px solid #007bff; margin-top: 20px;'>
@@ -313,36 +353,36 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         </div>
         """
 
-    # Create layout with chart and insights in sections
-    layout = {
-        "layoutJson": {
-            "sections": [{
-                "layout": "vertical",
-                "sections": [
-                    {
-                        "layout": "chart",
-                        "chart_data": chart_config
-                    },
-                    {
-                        "layout": "html",
-                        "html": insights_html
-                    }
-                ]
-            }]
-        },
-        "inputVariables": []
-    }
+        # Create layout with chart and insights in sections
+        layout = {
+            "layoutJson": {
+                "sections": [{
+                    "layout": "vertical",
+                    "sections": [
+                        {
+                            "layout": "chart",
+                            "chart_data": chart_config
+                        },
+                        {
+                            "layout": "html",
+                            "html": insights_html
+                        }
+                    ]
+                }]
+            },
+            "inputVariables": []
+        }
 
-    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
-    try:
-        full_html = wire_layout(layout, {})
-        print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
-    except Exception as e:
-        print(f"DEBUG: wire_layout failed: {e}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        # Fallback to simple HTML if wire_layout fails
-        full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
+        print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
+        try:
+            full_html = wire_layout(layout, {})
+            print(f"DEBUG: wire_layout successful, HTML length: {len(full_html)}")
+        except Exception as e:
+            print(f"DEBUG: wire_layout failed: {e}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            # Fallback to simple HTML if wire_layout fails
+            full_html = f"<p>Error rendering chart: {str(e)}</p>{insights_html}"
 
     # Generate narrative using LLM
     print(f"DEBUG: Generating narrative for {len(summary)} {dimension} value(s)")
