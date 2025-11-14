@@ -10,7 +10,7 @@ import numpy as np
 from datetime import datetime
 from typing import Optional, List
 
-from skill_framework import skill, SkillParameter, SkillInput, SkillOutput, SkillVisualization
+from skill_framework import skill, SkillParameter, SkillInput, SkillOutput, SkillVisualization, ParameterDisplayDescription
 from skill_framework.layouts import wire_layout
 from answer_rocket import AnswerRocketClient
 from ar_analytics import ArUtils
@@ -460,72 +460,6 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                             "tooltip": {"valueSuffix": "M", "valuePrefix": "$"},
                             "credits": {"enabled": False}
                         }
-                    },
-                    {
-                        "name": "InsightsContainer",
-                        "type": "FlexContainer",
-                        "children": "",
-                        "direction": "column",
-                        "style": {
-                            "padding": "20px",
-                            "backgroundColor": "#f8f9fa",
-                            "borderRadius": "8px",
-                            "borderLeft": "4px solid #3b82f6",
-                            "marginTop": "20px"
-                        }
-                    },
-                    {
-                        "name": "InsightsTitle",
-                        "type": "Header",
-                        "children": "",
-                        "text": "📊 Key Insights",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px"}
-                    },
-                    {
-                        "name": "Insight1",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• Price {'increased' if price_change > 0 else 'decreased'} by {abs(price_change):.1f}% from {months[0]} (${prices[0]:.2f}) to {months[-1]} (${prices[-1]:.2f})",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Insight2",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• Revenue {'grew' if revenue_change > 0 else 'declined'} by {abs(revenue_change):.1f}% over the period",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Insight3",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• Highest price month: {months[prices.index(max(prices))]} (${max(prices):.2f})",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Insight4",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• Lowest price month: {months[prices.index(min(prices))]} (${min(prices):.2f})",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Note",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"💡 Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values",
-                        "style": {
-                            "fontSize": "14px",
-                            "padding": "15px",
-                            "backgroundColor": "#fff3cd",
-                            "borderLeft": "4px solid #ffc107",
-                            "marginTop": "20px"
-                        }
                     }
                 ]
             },
@@ -770,60 +704,6 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         "children": "",
                         "minHeight": "500px",
                         "options": chart_config
-                    },
-                    # Insights Container
-                    {
-                        "name": "InsightsContainer",
-                        "type": "FlexContainer",
-                        "children": "",
-                        "direction": "column",
-                        "style": {
-                            "padding": "20px",
-                            "backgroundColor": "#f8f9fa",
-                            "borderLeft": "4px solid #007bff",
-                            "marginTop": "20px",
-                            "borderRadius": "8px"
-                        }
-                    },
-                    {
-                        "name": "InsightsTitle",
-                        "type": "Header",
-                        "children": "",
-                        "text": "💡 Key Insights",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "18px", "fontWeight": "bold", "marginBottom": "15px"}
-                    },
-                    {
-                        "name": "Insight1",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• {highest[dimension]} commands highest price at ${highest['avg_price']:.2f} ({highest['price_vs_avg']:+.1f}% vs market)",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Insight2",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• {lowest[dimension]} has lowest price at ${lowest['avg_price']:.2f} ({lowest['price_vs_avg']:+.1f}% vs market)",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "10px"}
-                    },
-                    {
-                        "name": "Insight3",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"• Price spread: ${(highest['avg_price'] - lowest['avg_price']):.2f} ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "15px", "marginBottom": "15px"}
-                    },
-                    {
-                        "name": "ColorLegend",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": "Color Legend: Red = Significantly Below Average | Yellow = Below Average | Teal = Market Average | Green = Premium Pricing",
-                        "parentId": "InsightsContainer",
-                        "style": {"fontSize": "13px", "color": "#666", "padding": "10px", "backgroundColor": "white", "borderRadius": "4px"}
                     }
                 ]
             },
@@ -848,41 +728,108 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
             }
             full_html = wire_layout(fallback_layout, {})
 
-    # Generate narrative using LLM
+    # Generate detailed narrative using LLM
     print(f"DEBUG: Generating narrative for {len(summary)} {dimension} value(s)")
 
     if len(summary) == 1:
         # Single item - simpler narrative
-        narrative = f"{highest[dimension]} has an average price of ${highest['avg_price']:.2f} with total revenue of ${highest['total_sales']:,.0f} and {highest['total_units']:,.0f} units sold. Remove filters to compare against other {dimension} values."
+        brief_summary = f"{highest[dimension]} has an average price of ${highest['avg_price']:.2f}."
+        detailed_narrative = f"""## Pricing Summary for {highest[dimension]}
+
+**Key Metrics:**
+- Average Price: ${highest['avg_price']:.2f}
+- Total Revenue: ${highest['total_sales']:,.0f}
+- Units Sold: {highest['total_units']:,.0f}
+
+**Next Steps:**
+Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values in the market.
+"""
         print(f"DEBUG: Using simple narrative for single item")
     else:
         # Multiple items - use LLM for richer narrative
         ar_utils = ArUtils()
-        narrative_prompt = f"""Based on this pricing analysis by {dimension}:
 
+        # Create data summary for LLM
+        top_3 = summary.nlargest(3, 'avg_price')
+        bottom_3 = summary.nsmallest(3, 'avg_price')
+
+        narrative_prompt = f"""Analyze this pricing comparison data and provide detailed insights:
+
+**Market Overview:**
+- Dimension: {dimension.replace('_', ' ').title()}
+- Number of {dimension} values analyzed: {len(summary)}
 - Market average price: ${overall_avg:.2f}
-- Highest priced: {highest[dimension]} at ${highest['avg_price']:.2f} (+{highest['price_vs_avg']:.1f}% vs market)
-- Lowest priced: {lowest[dimension]} at ${lowest['avg_price']:.2f} ({lowest['price_vs_avg']:.1f}% vs market)
+- Total market revenue: ${total_market_revenue:,.0f}
+- Total market units: {total_market_units:,.0f}
+
+**Price Leaders (Highest):**
+{chr(10).join([f"- {row[dimension]}: ${row['avg_price']:.2f} ({row['price_vs_avg']:+.1f}% vs market)" for _, row in top_3.iterrows()])}
+
+**Value Segment (Lowest):**
+{chr(10).join([f"- {row[dimension]}: ${row['avg_price']:.2f} ({row['price_vs_avg']:+.1f}% vs market)" for _, row in bottom_3.iterrows()])}
+
+**Price Distribution:**
+- Price range: ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}
+- Price spread: ${(highest['avg_price'] - lowest['avg_price']):.2f} ({((highest['avg_price'] / lowest['avg_price'] - 1) * 100):.1f}% difference)
+
+Provide a comprehensive analysis with the following sections:
+1. **Market Structure**: What does the pricing spread tell us about market segmentation?
+2. **Positioning Insights**: How do premium vs value segments compare?
+3. **Opportunities**: What pricing opportunities or risks do you see?
+4. **Recommendations**: Strategic recommendations for pricing optimization.
+
+Use markdown formatting with clear headers and bullet points."""
+
+        print(f"DEBUG: Calling ArUtils.get_llm_response for detailed narrative")
+        try:
+            detailed_narrative = ar_utils.get_llm_response(narrative_prompt)
+            if not detailed_narrative:
+                detailed_narrative = f"""## Price Comparison Analysis
+
+**Market Overview:**
+- Analyzed {len(summary)} {dimension.replace('_', ' ')} values
+- Market average: ${overall_avg:.2f}
 - Price range: ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}
 
-Provide a brief executive summary (2-3 sentences) about the pricing landscape and what it suggests about market positioning."""
-
-        print(f"DEBUG: Calling ArUtils.get_llm_response for narrative")
-        try:
-            narrative = ar_utils.get_llm_response(narrative_prompt) or f"Price comparison shows {len(summary)} {dimension} values ranging from ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}, with an average of ${overall_avg:.2f}."
-            print(f"DEBUG: LLM narrative generated, length: {len(narrative)}")
+**Key Findings:**
+- {highest[dimension]} commands the highest price at ${highest['avg_price']:.2f} (+{highest['price_vs_avg']:.1f}% vs market)
+- {lowest[dimension]} has the lowest price at ${lowest['avg_price']:.2f} ({lowest['price_vs_avg']:.1f}% vs market)
+- Price spread of ${(highest['avg_price'] - lowest['avg_price']):.2f} suggests significant market segmentation
+"""
+            brief_summary = f"Price analysis shows {len(summary)} {dimension.replace('_', ' ')} values ranging from ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}."
+            print(f"DEBUG: LLM narrative generated, length: {len(detailed_narrative)}")
         except Exception as e:
             print(f"DEBUG: LLM narrative failed: {e}")
-            narrative = f"Price comparison shows {len(summary)} {dimension} values ranging from ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}, with an average of ${overall_avg:.2f}."
+            detailed_narrative = f"""## Price Comparison Analysis
 
-    print(f"DEBUG: Final narrative: {narrative[:100]}...")
+**Market Overview:**
+- Analyzed {len(summary)} {dimension.replace('_', ' ')} values
+- Market average: ${overall_avg:.2f}
+- Price range: ${lowest['avg_price']:.2f} to ${highest['avg_price']:.2f}
+"""
+            brief_summary = f"Price analysis shows {len(summary)} {dimension.replace('_', ' ')} values."
+
+    print(f"DEBUG: Narrative preview: {brief_summary[:100]}...")
+
+    # Create parameter pills
+    param_pills = [
+        ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
+        ParameterDisplayDescription(key="items_analyzed", value=f"Items: {len(summary)}"),
+    ]
+
+    if len(summary) > 1:
+        param_pills.extend([
+            ParameterDisplayDescription(key="avg_price", value=f"Avg Price: ${overall_avg:.2f}"),
+            ParameterDisplayDescription(key="price_range", value=f"Range: ${lowest['avg_price']:.2f} - ${highest['avg_price']:.2f}"),
+        ])
 
     return SkillOutput(
-        final_prompt=narrative,
-        narrative=None,
+        final_prompt=brief_summary,
+        narrative=detailed_narrative,
         visualizations=[
             SkillVisualization(title="Price Comparison", layout=full_html)
-        ]
+        ],
+        parameter_display_descriptions=param_pills
     )
 
 
