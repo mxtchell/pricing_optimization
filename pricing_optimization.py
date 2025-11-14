@@ -284,7 +284,7 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                 }]
             }]
         },
-        "inputVariables": {}
+        "inputVariables": []
     }
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
@@ -706,7 +706,7 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
                 }]
             }]
         },
-        "inputVariables": {}
+        "inputVariables": []
     }
 
     print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
