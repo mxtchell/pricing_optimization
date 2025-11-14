@@ -346,6 +346,9 @@ Provide a brief executive summary (2-3 sentences) about the pricing landscape an
 def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
     """Calculate price elasticity for each dimension value"""
 
+    print(f"DEBUG: analyze_price_elasticity called with {len(df)} rows, dimension={dimension}")
+    print(f"DEBUG: Unique {dimension} values: {df[dimension].unique()}")
+
     results = []
 
     for dim_value in df[dimension].unique():
@@ -375,6 +378,8 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
                 'total_units': subset['total_units'].sum(),
                 'data_points': len(subset)
             })
+
+    print(f"DEBUG: Calculated elasticity for {len(results)} {dimension} values")
 
     if not results:
         html = "<p>Insufficient data to calculate price elasticity. Need more price variation over time.</p>"
@@ -449,6 +454,8 @@ def analyze_price_elasticity(df: pd.DataFrame, dimension: str):
 def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
     """Identify pricing optimization opportunities"""
 
+    print(f"DEBUG: analyze_optimization_opportunities called with {len(df)} rows, dimension={dimension}")
+
     # Calculate metrics by dimension
     summary = df.groupby(dimension).agg({
         'total_sales': 'sum',
@@ -456,13 +463,39 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
         'total_volume': 'sum'
     }).reset_index()
 
+    print(f"DEBUG: Grouped by {dimension}, got {len(summary)} unique values")
+
     summary['avg_price'] = summary['total_sales'] / summary['total_units']
     summary['revenue_per_unit'] = summary['total_sales'] / summary['total_units']
+
+    # Check if we have enough data for comparison
+    if len(summary) < 2:
+        print(f"DEBUG: Only {len(summary)} unique value(s) - cannot compare across {dimension}")
+        avg_price = summary['avg_price'].iloc[0] if len(summary) == 1 else 0
+        html = f"""
+        <div style='padding: 30px; text-align: center; background: #fff3cd; border-left: 4px solid #ffc107;'>
+            <h2 style='color: #856404;'>⚠️ Insufficient Data for Comparison</h2>
+            <p style='font-size: 16px;'>Optimization analysis requires multiple {dimension} values to compare.</p>
+            <p style='margin-top: 20px;'>Current filter shows only <strong>{summary[dimension].iloc[0] if len(summary) == 1 else 'no values'}</strong> at <strong>${avg_price:.2f}</strong></p>
+            <p style='margin-top: 20px; font-size: 14px;'><strong>Suggestions:</strong></p>
+            <ul style='text-align: left; display: inline-block; font-size: 14px;'>
+                <li>Remove filters to see all {dimension} values</li>
+                <li>Use "price_comparison" analysis instead to see this {dimension}'s pricing</li>
+                <li>Try a different dimension (e.g., segment, sub_category)</li>
+            </ul>
+        </div>
+        """
+        return SkillOutput(
+            narrative=f"Optimization analysis needs multiple {dimension} values to compare. Currently showing only one value. Try removing filters or using price_comparison analysis.",
+            visualizations=[SkillVisualization(title="Optimization Analysis", layout=html)]
+        )
 
     # Calculate percentiles
     p25 = summary['avg_price'].quantile(0.25)
     p75 = summary['avg_price'].quantile(0.75)
     median = summary['avg_price'].median()
+
+    print(f"DEBUG: Price stats - p25: ${p25:.2f}, median: ${median:.2f}, p75: ${p75:.2f}")
 
     # Identify opportunities
     summary['opportunity'] = summary.apply(lambda row:
@@ -546,6 +579,8 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
 def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct: float):
     """Simulate revenue impact of price changes"""
 
+    print(f"DEBUG: analyze_what_if_scenario called with {len(df)} rows, dimension={dimension}, price_change_pct={price_change_pct}")
+
     # Assume moderate elasticity of -0.7 (industry typical for CPG)
     assumed_elasticity = -0.7
 
@@ -553,6 +588,8 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
         'total_sales': 'sum',
         'total_units': 'sum'
     }).reset_index()
+
+    print(f"DEBUG: Grouped by {dimension}, got {len(summary)} unique values")
 
     summary['current_price'] = summary['total_sales'] / summary['total_units']
     summary['new_price'] = summary['current_price'] * (1 + price_change_pct / 100)
