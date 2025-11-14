@@ -99,48 +99,84 @@ def pricing_optimization(parameters: SkillInput):
     if end_date:
         sql_query += f" AND month_new <= '{end_date}'"
 
-    # Add dimension filters
+    # Add dimension filters (case-insensitive)
     if filters:
         for filter_item in filters:
             if isinstance(filter_item, dict) and 'dim' in filter_item and 'val' in filter_item:
                 dim = filter_item['dim']
                 values = filter_item['val']
                 if isinstance(values, list):
-                    values_str = "', '".join(str(v) for v in values)
-                    sql_query += f" AND {dim} IN ('{values_str}')"
+                    values_str = "', '".join(str(v).upper() for v in values)
+                    sql_query += f" AND UPPER({dim}) IN ('{values_str}')"
+                    print(f"DEBUG: Added filter UPPER({dim}) IN ('{values_str}')")
                 else:
-                    sql_query += f" AND {dim} = '{values}'"
+                    sql_query += f" AND UPPER({dim}) = '{str(values).upper()}'"
+                    print(f"DEBUG: Added filter UPPER({dim}) = '{str(values).upper()}'")
 
     sql_query += f"""
     GROUP BY {dimension}, month_new
     ORDER BY {dimension}, month_new
     """
 
-    print(f"Executing SQL:\n{sql_query}")
+    print(f"DEBUG: Executing SQL:\n{sql_query}")
 
     # Execute query
     try:
         client = AnswerRocketClient()
         result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
 
+        print(f"DEBUG: Query result success: {result.success if hasattr(result, 'success') else 'Unknown'}")
+
         if not result.success or not hasattr(result, 'df'):
+            error_msg = result.error if hasattr(result, 'error') else 'Unknown error'
+            print(f"DEBUG: Query failed: {error_msg}")
             return SkillOutput(
-                narrative="Failed to retrieve pricing data",
+                narrative=f"Failed to retrieve pricing data: {error_msg}",
                 visualizations=[SkillVisualization(
                     title="Error",
-                    layout="<p>Unable to load pricing data</p>"
+                    layout=f"<p>Unable to load pricing data: {error_msg}</p>"
                 )]
             )
 
         df = result.df
-        print(f"Retrieved {len(df)} rows")
+        print(f"DEBUG: Retrieved {len(df)} rows")
+
+        if len(df) > 0:
+            print(f"DEBUG: First few rows:\n{df.head()}")
+            print(f"DEBUG: Columns: {list(df.columns)}")
+            print(f"DEBUG: Unique {dimension} values: {df[dimension].unique()[:10]}")
 
         if df.empty:
+            filter_info = ""
+            if filters:
+                filter_info = f"<br>Filters applied: {filters}"
+            date_info = ""
+            if start_date or end_date:
+                date_info = f"<br>Date range: {start_date or 'any'} to {end_date or 'any'}"
+
+            no_data_html = f"""
+            <div style='padding: 30px; text-align: center; background: #fff3cd; border-left: 4px solid #ffc107;'>
+                <h2 style='color: #856404;'>⚠️ No Data Found</h2>
+                <p style='font-size: 16px;'>No pricing data matches your criteria:</p>
+                <ul style='text-align: left; display: inline-block;'>
+                    <li>Dimension: <strong>{dimension}</strong></li>
+                    {f"<li>Filters: {filters}</li>" if filters else ""}
+                    {f"<li>Date range: {start_date or 'any'} to {end_date or 'any'}</li>" if start_date or end_date else ""}
+                </ul>
+                <p style='margin-top: 20px; font-size: 14px;'><strong>Suggestions:</strong></p>
+                <ul style='text-align: left; display: inline-block; font-size: 14px;'>
+                    <li>Try removing date filters</li>
+                    <li>Check filter values match data (case-insensitive search enabled)</li>
+                    <li>Try a different dimension</li>
+                </ul>
+            </div>
+            """
+            print(f"DEBUG: No data returned. Filters: {filters}, Dates: {start_date} to {end_date}")
             return SkillOutput(
-                narrative="No data found for the specified parameters",
+                narrative=f"No pricing data found for {dimension} with the specified filters and date range.",
                 visualizations=[SkillVisualization(
                     title="No Data",
-                    layout="<p>No pricing data found matching your criteria</p>"
+                    layout=no_data_html
                 )]
             )
 
@@ -175,6 +211,8 @@ def pricing_optimization(parameters: SkillInput):
 def analyze_price_comparison(df: pd.DataFrame, dimension: str):
     """Compare average prices across dimension values"""
 
+    print(f"DEBUG: analyze_price_comparison called with {len(df)} rows, dimension={dimension}")
+
     # Calculate average metrics by dimension
     summary = df.groupby(dimension).agg({
         'total_sales': 'sum',
@@ -183,12 +221,18 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         'avg_price_per_unit': 'mean'
     }).reset_index()
 
+    print(f"DEBUG: Grouped by {dimension}, got {len(summary)} unique values")
+
     summary['avg_price'] = summary['total_sales'] / summary['total_units']
     summary = summary.sort_values('avg_price', ascending=True).head(15)  # Top 15, ascending for horizontal bar
+
+    print(f"DEBUG: Price range: ${summary['avg_price'].min():.2f} to ${summary['avg_price'].max():.2f}")
 
     # Calculate price premium/discount vs average
     overall_avg = summary['avg_price'].mean()
     summary['price_vs_avg'] = ((summary['avg_price'] / overall_avg - 1) * 100).round(1)
+
+    print(f"DEBUG: Overall average price: ${overall_avg:.2f}")
 
     # Create Highcharts bar chart
     categories = summary[dimension].tolist()
@@ -240,7 +284,16 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         }]
     }
 
-    chart_html = wire_layout(layout, {})
+    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
+    try:
+        chart_html = wire_layout(layout, {})
+        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
+    except Exception as e:
+        print(f"DEBUG: wire_layout failed: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        # Fallback to simple HTML if wire_layout fails
+        chart_html = f"<p>Error rendering chart: {str(e)}</p>"
 
     # Add insights section
     highest = summary.iloc[-1]  # Last item (highest price)
@@ -581,7 +634,16 @@ def analyze_what_if_scenario(df: pd.DataFrame, dimension: str, price_change_pct:
         }]
     }
 
-    chart_html = wire_layout(layout, {})
+    print(f"DEBUG: Creating chart with wire_layout, {len(categories)} categories")
+    try:
+        chart_html = wire_layout(layout, {})
+        print(f"DEBUG: wire_layout successful, HTML length: {len(chart_html)}")
+    except Exception as e:
+        print(f"DEBUG: wire_layout failed: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        # Fallback to simple HTML if wire_layout fails
+        chart_html = f"<p>Error rendering chart: {str(e)}</p>"
 
     # Create KPI cards for overall impact
     kpi_html = f"""
