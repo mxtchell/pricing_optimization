@@ -246,8 +246,8 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
         # Single item - show KPI cards instead of chart (Highcharts struggles with 1 bar)
         print(f"DEBUG: Single item detected, using KPI card layout instead of chart")
 
-        # Use structured JSON layout like Price Variance Deep Dive does
-        print(f"DEBUG: Creating structured JSON layout for single brand")
+        # Use flat structure with parentId like Price Variance Deep Dive
+        print(f"DEBUG: Creating flat JSON layout with parentId references")
 
         kpi_layout = {
             "layoutJson": {
@@ -258,7 +258,9 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                 },
                 "children": [
                     {
+                        "name": "Header_Title",
                         "type": "Header",
+                        "children": "",
                         "text": f"{highest[dimension]} - Pricing Summary",
                         "style": {
                             "fontSize": "24px",
@@ -267,86 +269,103 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str):
                         }
                     },
                     {
+                        "name": "KPI_Row",
                         "type": "FlexContainer",
+                        "children": "",
                         "direction": "row",
-                        "style": {
-                            "gap": "20px",
-                            "marginBottom": "20px"
-                        },
-                        "children": [
-                            {
-                                "type": "FlexContainer",
-                                "direction": "column",
-                                "style": {
-                                    "flex": "1",
-                                    "padding": "20px",
-                                    "backgroundColor": "#f8f9fa",
-                                    "borderRadius": "8px",
-                                    "textAlign": "center"
-                                },
-                                "children": [
-                                    {
-                                        "type": "Paragraph",
-                                        "text": "Average Price",
-                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
-                                    },
-                                    {
-                                        "type": "Paragraph",
-                                        "text": f"${highest['avg_price']:.2f}",
-                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
-                                    }
-                                ]
-                            },
-                            {
-                                "type": "FlexContainer",
-                                "direction": "column",
-                                "style": {
-                                    "flex": "1",
-                                    "padding": "20px",
-                                    "backgroundColor": "#f8f9fa",
-                                    "borderRadius": "8px",
-                                    "textAlign": "center"
-                                },
-                                "children": [
-                                    {
-                                        "type": "Paragraph",
-                                        "text": "Total Revenue",
-                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
-                                    },
-                                    {
-                                        "type": "Paragraph",
-                                        "text": f"${highest['total_sales']/1000000:.1f}M",
-                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
-                                    }
-                                ]
-                            },
-                            {
-                                "type": "FlexContainer",
-                                "direction": "column",
-                                "style": {
-                                    "flex": "1",
-                                    "padding": "20px",
-                                    "backgroundColor": "#f8f9fa",
-                                    "borderRadius": "8px",
-                                    "textAlign": "center"
-                                },
-                                "children": [
-                                    {
-                                        "type": "Paragraph",
-                                        "text": "Total Units",
-                                        "style": {"fontSize": "14px", "marginBottom": "10px"}
-                                    },
-                                    {
-                                        "type": "Paragraph",
-                                        "text": f"{highest['total_units']/1000000:.1f}M",
-                                        "style": {"fontSize": "32px", "fontWeight": "bold"}
-                                    }
-                                ]
-                            }
-                        ]
+                        "extraStyles": "gap: 15px; margin-bottom: 20px;"
                     },
                     {
+                        "name": "KPI_Card1",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "padding": "20px",
+                            "backgroundColor": "#eff6ff",
+                            "borderRadius": "8px",
+                            "borderLeft": "4px solid #3b82f6"
+                        }
+                    },
+                    {
+                        "name": "KPI1_Label",
                         "type": "Paragraph",
+                        "children": "",
+                        "text": "Average Price",
+                        "parentId": "KPI_Card1",
+                        "style": {"fontSize": "14px", "marginBottom": "10px", "color": "#666"}
+                    },
+                    {
+                        "name": "KPI1_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${highest['avg_price']:.2f}",
+                        "parentId": "KPI_Card1",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
+                    },
+                    {
+                        "name": "KPI_Card2",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "padding": "20px",
+                            "backgroundColor": "#f0fdf4",
+                            "borderRadius": "8px",
+                            "borderLeft": "4px solid #10b981"
+                        }
+                    },
+                    {
+                        "name": "KPI2_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Total Revenue",
+                        "parentId": "KPI_Card2",
+                        "style": {"fontSize": "14px", "marginBottom": "10px", "color": "#666"}
+                    },
+                    {
+                        "name": "KPI2_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${highest['total_sales']/1000000:.1f}M",
+                        "parentId": "KPI_Card2",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
+                    },
+                    {
+                        "name": "KPI_Card3",
+                        "type": "FlexContainer",
+                        "children": "",
+                        "direction": "column",
+                        "parentId": "KPI_Row",
+                        "style": {
+                            "padding": "20px",
+                            "backgroundColor": "#fef3c7",
+                            "borderRadius": "8px",
+                            "borderLeft": "4px solid #f59e0b"
+                        }
+                    },
+                    {
+                        "name": "KPI3_Label",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Total Units",
+                        "parentId": "KPI_Card3",
+                        "style": {"fontSize": "14px", "marginBottom": "10px", "color": "#666"}
+                    },
+                    {
+                        "name": "KPI3_Value",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"{highest['total_units']/1000000:.1f}M",
+                        "parentId": "KPI_Card3",
+                        "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#000"}
+                    },
+                    {
+                        "name": "Note",
+                        "type": "Paragraph",
+                        "children": "",
                         "text": f"Note: Remove the {dimension} filter to compare {highest[dimension]} against other {dimension} values.",
                         "style": {
                             "fontSize": "14px",
