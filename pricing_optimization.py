@@ -293,12 +293,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
         result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
 
-        # Handle result object properly
-        if hasattr(result, 'records'):
-            full_df = pd.DataFrame(result.records)
-        else:
-            full_df = pd.DataFrame(result)
+        if not result.success or not hasattr(result, 'df'):
+            error_msg = result.error if hasattr(result, 'error') else 'Unknown error'
+            raise Exception(f"Query failed: {error_msg}")
 
+        full_df = result.df
         print(f"DEBUG: Full dataset retrieved: {len(full_df)} rows")
 
     except Exception as e:
