@@ -1339,7 +1339,7 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
                     "children": "",
                     "direction": "column",
                     "style": {
-                        "background": "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                        "background": "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
                         "padding": "30px",
                         "borderRadius": "12px",
                         "marginBottom": "25px",
@@ -1592,10 +1592,91 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
     print(f"DEBUG: Creating optimization layout with {num_opportunities} opportunities")
     html = wire_layout(optimization_layout, {})
 
+    # Generate LLM insights
+    ar_utils = ArUtils()
+
+    if num_opportunities > 0:
+        top_opportunities = opportunities.nlargest(3, 'potential_revenue_lift')
+
+        insight_prompt = f"""Analyze this pricing optimization analysis and provide strategic recommendations:
+
+**Market Context:**
+- Dimension: {dimension.replace('_', ' ').title()}
+- Items analyzed: {num_items}
+- Market median price: ${median:.2f}
+- Total revenue: ${total_market_revenue:,.0f}
+
+**Optimization Opportunities Found: {num_opportunities}**
+{chr(10).join([f"- {row[dimension]}: Currently ${row['avg_price']:.2f} (vs median ${median:.2f}), {row['total_units']:,.0f} units → Potential lift ${row['potential_revenue_lift']:,.0f}" for _, row in top_opportunities.iterrows()])}
+
+**Total Potential Revenue Lift: ${total_lift:,.0f}**
+
+Provide a comprehensive analysis with:
+1. **Opportunity Assessment**: Which products have the most potential and why?
+2. **Risk Analysis**: What are the risks of raising prices on these high-volume products?
+3. **Implementation Strategy**: How should price increases be rolled out?
+4. **Success Metrics**: What KPIs should be tracked?
+
+Use markdown formatting with clear headers and bullet points."""
+    else:
+        insight_prompt = f"""Analyze this pricing optimization analysis:
+
+**Market Context:**
+- Dimension: {dimension.replace('_', ' ').title()}
+- Items analyzed: {num_items}
+- Market median price: ${median:.2f}
+- Total revenue: ${total_market_revenue:,.0f}
+
+**Finding:** No clear price increase opportunities were identified based on current pricing vs market median.
+
+Provide analysis on:
+1. Why no opportunities were found
+2. What this suggests about current pricing strategy
+3. Alternative optimization approaches to consider
+
+Use markdown formatting."""
+
+    try:
+        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
+        if not detailed_narrative:
+            if num_opportunities > 0:
+                detailed_narrative = f"""## Pricing Optimization Analysis
+
+**Opportunities Found: {num_opportunities}**
+
+Potential revenue lift of ${total_lift:,.0f} identified through strategic price increases for underpriced, high-volume products.
+
+**Top Opportunities:**
+{chr(10).join([f"- **{row[dimension]}**: Raise from ${row['avg_price']:.2f} to ${median:.2f} → ${row['potential_revenue_lift']:,.0f} lift" for _, row in top_opportunities.iterrows()])}
+
+**Recommendation:** Test 5-10% price increases, monitor volume impact, adjust based on customer response.
+"""
+            else:
+                detailed_narrative = "## Pricing Optimization Analysis\n\nNo clear price increase opportunities identified. Current pricing appears well-optimized relative to market median."
+    except Exception as e:
+        print(f"DEBUG: LLM insight generation failed: {e}")
+        detailed_narrative = "## Pricing Optimization Analysis\n\nAnalysis complete. See recommendations below for next steps."
+
+    brief_summary = f"Found {num_opportunities} pricing optimization opportunities with ${total_lift:,.0f} potential revenue lift." if num_opportunities > 0 else "No clear pricing optimization opportunities identified."
+
+    # Create pills
+    param_pills = [
+        ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
+        ParameterDisplayDescription(key="items", value=f"Items: {num_items}"),
+        ParameterDisplayDescription(key="median_price", value=f"Median: ${median:.2f}"),
+        ParameterDisplayDescription(key="opportunities", value=f"Opportunities: {num_opportunities}"),
+    ]
+
+    if total_lift > 0:
+        param_pills.append(
+            ParameterDisplayDescription(key="potential_lift", value=f"Potential Lift: ${total_lift/1000000:.1f}M" if total_lift > 1000000 else f"${total_lift:,.0f}")
+        )
+
     return SkillOutput(
-        final_prompt="Analysis identifies products with potential for revenue optimization through strategic pricing adjustments.",
-        narrative=None,
-        visualizations=[SkillVisualization(title="Optimization Opportunities", layout=html)]
+        final_prompt=brief_summary,
+        narrative=detailed_narrative,
+        visualizations=[SkillVisualization(title="Optimization Opportunities", layout=html)],
+        parameter_display_descriptions=param_pills
     )
 
 
