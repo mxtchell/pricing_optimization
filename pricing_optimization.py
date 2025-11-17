@@ -292,7 +292,12 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         sql_query += f" GROUP BY {dimension}, brand, month_new"
 
         result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
-        full_df = pd.DataFrame(result.records)
+
+        # Handle result object properly
+        if hasattr(result, 'records'):
+            full_df = pd.DataFrame(result.records)
+        else:
+            full_df = pd.DataFrame(result)
 
         print(f"DEBUG: Full dataset retrieved: {len(full_df)} rows")
 
