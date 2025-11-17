@@ -217,9 +217,20 @@ def pricing_optimization(parameters: SkillInput):
                 )]
             )
 
+        # Extract brand filter if exists
+        brand_filter = None
+        for filter_item in filters:
+            if isinstance(filter_item, dict) and filter_item.get('dim') == 'brand':
+                brand_value = filter_item.get('val')
+                if isinstance(brand_value, list) and len(brand_value) == 1:
+                    brand_filter = brand_value[0]
+                elif isinstance(brand_value, str):
+                    brand_filter = brand_value
+                break
+
         # Perform analysis based on type
         if analysis_type == "price_comparison":
-            analysis_result = analyze_price_comparison(df, dimension)
+            analysis_result = analyze_price_comparison(df, dimension, brand_filter, filters)
         elif analysis_type == "elasticity":
             analysis_result = analyze_price_elasticity(df, dimension)
         elif analysis_type == "optimization":
@@ -227,7 +238,7 @@ def pricing_optimization(parameters: SkillInput):
         elif analysis_type == "what_if":
             analysis_result = analyze_what_if_scenario(df, dimension, price_change_pct)
         else:
-            analysis_result = analyze_price_comparison(df, dimension)
+            analysis_result = analyze_price_comparison(df, dimension, brand_filter, filters)
 
         return analysis_result
 
@@ -246,10 +257,410 @@ def pricing_optimization(parameters: SkillInput):
         )
 
 
-def analyze_price_comparison(df: pd.DataFrame, dimension: str):
-    """Compare average prices across dimension values"""
+def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filter: str, filters: list):
+    """Compare target brand vs competition across dimension values"""
 
-    print(f"DEBUG: analyze_price_comparison called with {len(df)} rows, dimension={dimension}")
+    print(f"DEBUG: analyze_competitive_comparison for {brand_filter} by {dimension}")
+
+    # Re-query to get ALL brands for comparison (not just the filtered brand)
+    try:
+        client = AnswerRocketClient()
+
+        # Build SQL query without brand filter
+        sql_query = f"""
+        SELECT
+            {dimension},
+            brand,
+            month_new,
+            SUM(sales) as total_sales,
+            SUM(units) as total_units,
+            SUM(volume) as total_volume
+        FROM read_csv('pasta_2025.csv')
+        WHERE 1=1
+        """
+
+        # Add non-brand filters
+        if filters:
+            for filter_item in filters:
+                if isinstance(filter_item, dict) and filter_item.get('dim') != 'brand':
+                    dim = filter_item['dim']
+                    values = filter_item.get('val')
+                    if isinstance(values, list):
+                        values_str = "', '".join(str(v).upper() for v in values)
+                        sql_query += f" AND UPPER({dim}) IN ('{values_str}')"
+
+        sql_query += f" GROUP BY {dimension}, brand, month_new"
+
+        result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
+        full_df = pd.DataFrame(result.records)
+
+        print(f"DEBUG: Full dataset retrieved: {len(full_df)} rows")
+
+    except Exception as e:
+        print(f"DEBUG: Failed to get competitive data: {e}")
+        # Fall back to regular analysis with just the brand data
+        return analyze_price_comparison(df, dimension, None, None)
+
+    # Split into target brand vs competition
+    target_df = full_df[full_df['brand'].str.upper() == brand_filter.upper()].copy()
+    competitors_df = full_df[full_df['brand'].str.upper() != brand_filter.upper()].copy()
+
+    print(f"DEBUG: {brand_filter} data: {len(target_df)} rows, Competitors: {len(competitors_df)} rows")
+
+    # Aggregate by dimension
+    target_summary = target_df.groupby(dimension).agg({
+        'total_sales': 'sum',
+        'total_units': 'sum',
+        'total_volume': 'sum'
+    }).reset_index()
+    target_summary['avg_price'] = target_summary['total_sales'] / target_summary['total_units']
+    target_summary['brand_name'] = brand_filter
+
+    comp_summary = competitors_df.groupby(dimension).agg({
+        'total_sales': 'sum',
+        'total_units': 'sum',
+        'total_volume': 'sum'
+    }).reset_index()
+    comp_summary['avg_price'] = comp_summary['total_sales'] / comp_summary['total_units']
+    comp_summary['brand_name'] = 'Competition Avg'
+
+    # Merge on dimension to get side-by-side comparison
+    comparison = target_summary.merge(
+        comp_summary[[dimension, 'avg_price']],
+        on=dimension,
+        how='outer',
+        suffixes=('_target', '_comp')
+    )
+
+    comparison = comparison.sort_values('avg_price_target', ascending=True).head(15)
+    comparison['price_premium_pct'] = ((comparison['avg_price_target'] / comparison['avg_price_comp'] - 1) * 100).round(1)
+
+    print(f"DEBUG: Comparison data: {len(comparison)} dimension values")
+
+    # Calculate competitive metrics for KPIs
+    total_target_units = target_summary['total_units'].sum()
+    total_all_units = full_df['total_units'].sum()
+    volume_share = (total_target_units / total_all_units * 100).round(1)
+
+    # Weighted average premium
+    comparison_clean = comparison.dropna()
+    if len(comparison_clean) > 0:
+        weighted_premium = (comparison_clean['price_premium_pct'] * comparison_clean['total_units']).sum() / comparison_clean['total_units'].sum()
+        price_leaders = len(comparison_clean[comparison_clean['price_premium_pct'] > 0])
+    else:
+        weighted_premium = 0
+        price_leaders = 0
+
+    num_skus = len(comparison)
+
+    # Create grouped column chart
+    categories = comparison[dimension].fillna('Unknown').tolist()
+    target_prices = comparison['avg_price_target'].fillna(0).round(2).tolist()
+    comp_prices = comparison['avg_price_comp'].fillna(0).round(2).tolist()
+
+    chart_config = {
+        "chart": {"type": "column", "height": 500},
+        "title": {
+            "text": f"{brand_filter} vs Competition by {dimension.replace('_', ' ').title()}",
+            "style": {"fontSize": "20px", "fontWeight": "bold"}
+        },
+        "xAxis": {
+            "categories": categories,
+            "title": {"text": dimension.replace('_', ' ').title()}
+        },
+        "yAxis": {
+            "min": 0,
+            "title": {"text": "Average Price ($)"},
+            "labels": {"format": "${value:.2f}"}
+        },
+        "tooltip": {
+            "shared": True,
+            "valuePrefix": "$",
+            "valueDecimals": 2
+        },
+        "plotOptions": {
+            "column": {
+                "dataLabels": {
+                    "enabled": True,
+                    "format": "${point.y:.2f}"
+                }
+            }
+        },
+        "series": [
+            {
+                "name": brand_filter,
+                "data": target_prices,
+                "color": "#3b82f6"
+            },
+            {
+                "name": "Competition Avg",
+                "data": comp_prices,
+                "color": "#9ca3af"
+            }
+        ],
+        "legend": {
+            "align": "center",
+            "verticalAlign": "bottom"
+        },
+        "credits": {"enabled": False}
+    }
+
+    # Create structured layout
+    comparison_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"backgroundColor": "#ffffff", "padding": "20px"},
+            "children": [
+                # Banner
+                {
+                    "name": "Banner",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {
+                        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        "padding": "30px",
+                        "borderRadius": "12px",
+                        "marginBottom": "25px",
+                        "boxShadow": "0 4px 6px rgba(0,0,0,0.1)"
+                    }
+                },
+                {
+                    "name": "BannerTitle",
+                    "type": "Header",
+                    "children": "",
+                    "text": f"Competitive Positioning: {brand_filter}",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "28px", "fontWeight": "bold", "color": "white", "marginBottom": "10px"}
+                },
+                {
+                    "name": "BannerSubtitle",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"Comparing {brand_filter} vs market average across {num_skus} {dimension.replace('_', ' ')} values",
+                    "parentId": "Banner",
+                    "style": {"fontSize": "16px", "color": "rgba(255,255,255,0.9)"}
+                },
+                # KPI Cards Row
+                {
+                    "name": "KPI_Row",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "row",
+                    "extraStyles": "gap: 15px; margin-bottom: 25px;"
+                },
+                # KPI Card 1: Competitive Premium
+                {
+                    "name": "KPI_Card1",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#e3f2fd" if weighted_premium > 0 else "#ffebee",
+                        "borderLeft": f"4px solid {'#2196f3' if weighted_premium > 0 else '#f44336'}",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI1_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Avg Competitive Premium",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI1_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{weighted_premium:+.1f}%",
+                    "parentId": "KPI_Card1",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#1976d2" if weighted_premium > 0 else "#d32f2f"}
+                },
+                # KPI Card 2: Volume Share
+                {
+                    "name": "KPI_Card2",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#e8f5e9",
+                        "borderLeft": "4px solid #4caf50",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI2_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Volume Share",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI2_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{volume_share:.1f}%",
+                    "parentId": "KPI_Card2",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#388e3c"}
+                },
+                # KPI Card 3: Price Leaders
+                {
+                    "name": "KPI_Card3",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#fff3e0",
+                        "borderLeft": "4px solid #ff9800",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI3_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Price Leaders",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI3_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{price_leaders} of {num_skus}",
+                    "parentId": "KPI_Card3",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#f57c00"}
+                },
+                # KPI Card 4: Total SKUs
+                {
+                    "name": "KPI_Card4",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "parentId": "KPI_Row",
+                    "style": {
+                        "flex": "1",
+                        "padding": "20px",
+                        "backgroundColor": "#fce4ec",
+                        "borderLeft": "4px solid #e91e63",
+                        "borderRadius": "8px",
+                        "boxShadow": "0 2px 4px rgba(0,0,0,0.08)"
+                    }
+                },
+                {
+                    "name": "KPI4_Label",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{dimension.replace('_', ' ').title()}s Analyzed",
+                    "parentId": "KPI_Card4",
+                    "style": {"fontSize": "14px", "color": "#666", "marginBottom": "8px"}
+                },
+                {
+                    "name": "KPI4_Value",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{num_skus}",
+                    "parentId": "KPI_Card4",
+                    "style": {"fontSize": "32px", "fontWeight": "bold", "color": "#c2185b"}
+                },
+                # Comparison Chart
+                {
+                    "name": "ComparisonChart",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "minHeight": "500px",
+                    "options": chart_config
+                }
+            ]
+        },
+        "inputVariables": []
+    }
+
+    html = wire_layout(comparison_layout, {})
+
+    # Generate insights with LLM
+    ar_utils = ArUtils()
+
+    # Get top 3 premium and top 3 discount items
+    premium_items = comparison_clean.nlargest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
+    discount_items = comparison_clean.nsmallest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
+
+    insight_prompt = f"""Analyze this competitive pricing comparison:
+
+**Brand**: {brand_filter}
+**Dimension**: {dimension.replace('_', ' ').title()}
+**Overall Position**: {weighted_premium:+.1f}% avg premium vs competition
+**Volume Share**: {volume_share:.1f}%
+
+**Premium Positioned** (priced above competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in premium_items.iterrows()]) if len(premium_items) > 0 else "None"}
+
+**Value Positioned** (priced below competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in discount_items.iterrows()]) if len(discount_items) > 0 else "None"}
+
+Provide strategic analysis:
+1. **Competitive Positioning**: What does the pricing pattern reveal about {brand_filter}'s strategy?
+2. **Opportunities**: Where can {brand_filter} raise prices to match or exceed competition?
+3. **Risks**: Where is {brand_filter} overpriced and at risk of losing share?
+4. **Recommendations**: Specific actions for pricing optimization.
+
+Use markdown formatting. **Limit response to 250 words maximum.**"""
+
+    try:
+        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
+        if not detailed_narrative:
+            detailed_narrative = f"""## Competitive Positioning Analysis
+
+{brand_filter} is positioned at {weighted_premium:+.1f}% vs competition on average, holding {volume_share:.1f}% volume share.
+
+**Key Findings:**
+- Price leadership in {price_leaders} of {num_skus} {dimension.replace('_', ' ')} values analyzed
+- Strategic mix of premium and value positioning across portfolio
+"""
+    except Exception as e:
+        print(f"DEBUG: LLM insight generation failed: {e}")
+        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete."
+
+    brief_summary = f"{brand_filter} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
+
+    # Create pills
+    param_pills = [
+        ParameterDisplayDescription(key="brand", value=f"Brand: {brand_filter}"),
+        ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
+        ParameterDisplayDescription(key="skus", value=f"SKUs: {num_skus}"),
+        ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
+    ]
+
+    return SkillOutput(
+        final_prompt=brief_summary,
+        narrative=detailed_narrative,
+        visualizations=[SkillVisualization(title="Competitive Comparison", layout=html)],
+        parameter_display_descriptions=param_pills
+    )
+
+
+def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str = None, filters: list = None):
+    """Compare average prices across dimension values, or competitive comparison if brand filter exists"""
+
+    print(f"DEBUG: analyze_price_comparison called with {len(df)} rows, dimension={dimension}, brand_filter={brand_filter}")
+
+    # If brand filter exists, do competitive comparison
+    if brand_filter:
+        return analyze_competitive_comparison(df, dimension, brand_filter, filters)
 
     # Calculate average metrics by dimension
     summary = df.groupby(dimension).agg({
