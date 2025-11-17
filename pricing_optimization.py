@@ -31,8 +31,8 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
         SkillParameter(
             name="dimension",
             constrained_to="dimensions",
-            description="Dimension to analyze (brand, segment, sub_category, manufacturer, state_name)",
-            default_value="brand"
+            description="Dimension to analyze within brand portfolio (sub_category, segment, base_size)",
+            default_value="base_size"
         ),
         SkillParameter(
             name="filters",
@@ -70,7 +70,7 @@ def pricing_optimization(parameters: SkillInput):
     """Pricing optimization analysis"""
 
     # Extract parameters
-    dimension = parameters.arguments.dimension or "brand"
+    dimension = parameters.arguments.dimension or "base_size"
     filters = parameters.arguments.filters or []
     start_date = parameters.arguments.start_date
     end_date = parameters.arguments.end_date
@@ -78,6 +78,41 @@ def pricing_optimization(parameters: SkillInput):
     price_change_pct = parameters.arguments.price_change_pct or 10
 
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
+
+    # Validate brand filter is present for optimization analysis
+    if analysis_type == "optimization":
+        has_brand_filter = False
+        brand_value = None
+        for filter_item in filters:
+            if isinstance(filter_item, dict) and filter_item.get('dim') == 'brand':
+                has_brand_filter = True
+                brand_value = filter_item.get('val')
+                if isinstance(brand_value, list) and len(brand_value) == 1:
+                    brand_value = brand_value[0]
+                break
+
+        if not has_brand_filter:
+            error_layout = {
+                "layoutJson": {
+                    "type": "Document",
+                    "style": {"padding": "20px"},
+                    "children": [{
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "⚠️ Brand filter required: Please filter to a single brand (e.g., BARILLA) to analyze portfolio optimization opportunities within that brand.",
+                        "style": {"fontSize": "16px", "color": "#dc3545", "padding": "20px", "backgroundColor": "#f8d7da", "borderRadius": "8px"}
+                    }]
+                },
+                "inputVariables": []
+            }
+            from skill_framework.layouts import wire_layout
+            error_html = wire_layout(error_layout, {})
+
+            return SkillOutput(
+                final_prompt="Brand filter required for optimization analysis.",
+                narrative="## Brand Filter Required\n\nThis optimization analysis compares products within a brand's portfolio. Please filter to a single brand (e.g., BARILLA) to see pricing optimization opportunities across their product line.",
+                visualizations=[SkillVisualization(title="Error", layout=error_html)]
+            )
 
     # Build SQL query
     sql_query = f"""
@@ -778,7 +813,7 @@ Provide a comprehensive analysis with the following sections:
 3. **Opportunities**: What pricing opportunities or risks do you see?
 4. **Recommendations**: Strategic recommendations for pricing optimization.
 
-Use markdown formatting with clear headers and bullet points."""
+Use markdown formatting with clear headers and bullet points. **Limit response to 250 words maximum.**"""
 
         print(f"DEBUG: Calling ArUtils.get_llm_response for detailed narrative")
         try:
@@ -1233,23 +1268,32 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
                 visualizations=[SkillVisualization(title="Pricing Summary", layout=html)]
             )
 
-    # Calculate percentiles
-    p25 = summary['avg_price'].quantile(0.25)
-    p75 = summary['avg_price'].quantile(0.75)
-    median = summary['avg_price'].median()
+    # Calculate price per volume for normalization across different pack sizes
+    summary['price_per_volume'] = summary['total_sales'] / summary['total_volume']
+    summary['avg_price'] = summary['total_sales'] / summary['total_units']
 
-    print(f"DEBUG: Price stats - p25: ${p25:.2f}, median: ${median:.2f}, p75: ${p75:.2f}")
+    # Use price per volume as the comparison metric (normalizes across pack sizes)
+    print(f"DEBUG: Using price_per_volume to normalize across {dimension} values")
 
-    # Identify opportunities
+    # Calculate percentiles on price per volume
+    p25 = summary['price_per_volume'].quantile(0.25)
+    p75 = summary['price_per_volume'].quantile(0.75)
+    median = summary['price_per_volume'].median()
+
+    print(f"DEBUG: Price per volume stats - p25: ${p25:.2f}, median: ${median:.2f}, p75: ${p75:.2f}")
+
+    # Identify opportunities - products with low price/volume AND high sales volume
     summary['opportunity'] = summary.apply(lambda row:
-        'Price Increase Potential' if row['avg_price'] < p25 and row['total_units'] > summary['total_units'].median()
-        else 'Premium Positioning' if row['avg_price'] > p75
-        else 'Well Positioned' if p25 <= row['avg_price'] <= p75
+        'Price Increase Potential' if row['price_per_volume'] < p25 and row['total_units'] > summary['total_units'].median()
+        else 'Premium Positioning' if row['price_per_volume'] > p75
+        else 'Well Positioned' if p25 <= row['price_per_volume'] <= p75
         else 'Monitor', axis=1
     )
 
+    # Calculate lift: bring low-priced items up to p25 (conservative target)
+    # Multiply by total_volume since we're using price_per_volume
     summary['potential_revenue_lift'] = summary.apply(lambda row:
-        (median - row['avg_price']) * row['total_units'] if row['opportunity'] == 'Price Increase Potential'
+        (p25 - row['price_per_volume']) * row['total_volume'] if row['opportunity'] == 'Price Increase Potential'
         else 0, axis=1
     )
 
@@ -1290,15 +1334,15 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
                     "name": f"Row{idx}_Current",
                     "type": "Paragraph",
                     "children": "",
-                    "text": f"${row['avg_price']:.2f}",
+                    "text": f"${row['price_per_volume']:.2f}/vol",
                     "parentId": "OpportunityTable",
                     "style": {"padding": "12px", "textAlign": "right"}
                 },
                 {
-                    "name": f"Row{idx}_Median",
+                    "name": f"Row{idx}_Target",
                     "type": "Paragraph",
                     "children": "",
-                    "text": f"${median:.2f}",
+                    "text": f"${p25:.2f}/vol",
                     "parentId": "OpportunityTable",
                     "style": {"padding": "12px", "textAlign": "right"}
                 },
@@ -1526,15 +1570,15 @@ def analyze_optimization_opportunities(df: pd.DataFrame, dimension: str):
                     "name": "Header_Current",
                     "type": "Paragraph",
                     "children": "",
-                    "text": "Current Price",
+                    "text": "Current $/Vol",
                     "parentId": "OpportunityTable",
                     "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
                 },
                 {
-                    "name": "Header_Median",
+                    "name": "Header_Target",
                     "type": "Paragraph",
                     "children": "",
-                    "text": "Market Median",
+                    "text": "P25 Target",
                     "parentId": "OpportunityTable",
                     "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
                 },
@@ -1617,7 +1661,7 @@ Provide a comprehensive analysis with:
 3. **Implementation Strategy**: How should price increases be rolled out?
 4. **Success Metrics**: What KPIs should be tracked?
 
-Use markdown formatting with clear headers and bullet points."""
+Use markdown formatting with clear headers and bullet points. **Limit response to 250 words maximum.**"""
     else:
         insight_prompt = f"""Analyze this pricing optimization analysis:
 
@@ -1634,7 +1678,7 @@ Provide analysis on:
 2. What this suggests about current pricing strategy
 3. Alternative optimization approaches to consider
 
-Use markdown formatting."""
+Use markdown formatting. **Limit response to 250 words maximum.**"""
 
     try:
         detailed_narrative = ar_utils.get_llm_response(insight_prompt)
