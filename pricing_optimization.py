@@ -439,18 +439,46 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         "credits": {"enabled": False}
     }
 
-    # Create price per oz chart
-    comparison['price_per_oz_target'] = comparison.apply(
-        lambda row: row['avg_price_target'] / float(row[dimension].split()[0]) if row[dimension] and row[dimension].split()[0].replace('.','').isdigit() else None,
+    # Always create price per oz chart by base_size (regardless of dimension analyzed)
+    # Re-aggregate by base_size for normalized comparison
+    base_size_target = target_df.groupby('base_size').agg({
+        'total_sales': 'sum',
+        'total_units': 'sum',
+        'total_volume': 'sum'
+    }).reset_index()
+    base_size_target['avg_price'] = base_size_target['total_sales'] / base_size_target['total_units']
+
+    base_size_comp = competitors_df.groupby('base_size').agg({
+        'total_sales': 'sum',
+        'total_units': 'sum',
+        'total_volume': 'sum'
+    }).reset_index()
+    base_size_comp['avg_price'] = base_size_comp['total_sales'] / base_size_comp['total_units']
+
+    # Merge and calculate price per oz
+    base_size_comparison = base_size_target.merge(
+        base_size_comp[['base_size', 'avg_price']],
+        on='base_size',
+        how='outer',
+        suffixes=('_target', '_comp')
+    ).sort_values('avg_price_target', ascending=True)
+
+    base_size_comparison['price_premium_pct'] = ((base_size_comparison['avg_price_target'] / base_size_comparison['avg_price_comp'] - 1) * 100).round(1)
+
+    # Extract oz from base_size and calculate price per oz
+    base_size_comparison['price_per_oz_target'] = base_size_comparison.apply(
+        lambda row: row['avg_price_target'] / float(row['base_size'].split()[0]) if pd.notna(row['avg_price_target']) and row['base_size'].split()[0].replace('.','').isdigit() else None,
         axis=1
     )
-    comparison['price_per_oz_comp'] = comparison.apply(
-        lambda row: row['avg_price_comp'] / float(row[dimension].split()[0]) if row[dimension] and row[dimension].split()[0].replace('.','').isdigit() else None,
+    base_size_comparison['price_per_oz_comp'] = base_size_comparison.apply(
+        lambda row: row['avg_price_comp'] / float(row['base_size'].split()[0]) if pd.notna(row['avg_price_comp']) and row['base_size'].split()[0].replace('.','').isdigit() else None,
         axis=1
     )
 
+    base_size_categories = base_size_comparison['base_size'].tolist()
+
     price_per_oz_data_target = []
-    for idx, row in comparison.iterrows():
+    for idx, row in base_size_comparison.iterrows():
         if pd.notna(row['price_per_oz_target']):
             gap_pct = row['price_premium_pct']
             color = "#22c55e" if gap_pct > 0 else "#ef4444"
@@ -461,17 +489,17 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         else:
             price_per_oz_data_target.append(None)
 
-    price_per_oz_data_comp = [round(x, 2) if pd.notna(x) else None for x in comparison['price_per_oz_comp'].tolist()]
+    price_per_oz_data_comp = [round(x, 2) if pd.notna(x) else None for x in base_size_comparison['price_per_oz_comp'].tolist()]
 
     price_per_oz_chart = {
         "chart": {"type": "column", "height": 400},
         "title": {
-            "text": f"Price Per Ounce: {brand_display} vs Competition",
+            "text": f"Price Per Ounce by Base Size: {brand_display} vs Competition",
             "style": {"fontSize": "18px", "fontWeight": "bold"}
         },
         "xAxis": {
-            "categories": categories,
-            "title": {"text": dimension.replace('_', ' ').title()}
+            "categories": base_size_categories,
+            "title": {"text": "Base Size"}
         },
         "yAxis": {
             "min": 0,
@@ -695,7 +723,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     "name": "TableHeader",
                     "type": "Header",
                     "children": "",
-                    "text": "🎯 Top Pricing Opportunities",
+                    "text": "Top Pricing Opportunities",
                     "style": {"fontSize": "20px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
                 },
                 # Opportunities Table
