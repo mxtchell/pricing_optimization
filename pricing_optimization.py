@@ -406,17 +406,12 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "labels": {"format": "${value:.2f}"}
         },
         "tooltip": {
-            "shared": True,
-            "valuePrefix": "$",
-            "valueDecimals": 2,
-            "backgroundColor": "#ffffff",
-            "borderColor": "#999",
+            "backgroundColor": "white",
+            "borderColor": "#333",
             "borderWidth": 2,
-            "borderRadius": 4,
-            "shadow": True,
-            "useHTML": False,
             "style": {
-                "opacity": 1
+                "color": "#333",
+                "fontSize": "12px"
             }
         },
         "plotOptions": {
