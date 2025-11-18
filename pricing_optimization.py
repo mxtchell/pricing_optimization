@@ -408,7 +408,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         "tooltip": {
             "shared": True,
             "valuePrefix": "$",
-            "valueDecimals": 2
+            "valueDecimals": 2,
+            "backgroundColor": "rgba(255, 255, 255, 0.95)",
+            "borderColor": "#999",
+            "borderWidth": 1,
+            "shadow": True
         },
         "plotOptions": {
             "column": {
@@ -514,7 +518,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "shared": True,
             "valuePrefix": "$",
             "valueDecimals": 2,
-            "valueSuffix": "/oz"
+            "valueSuffix": "/oz",
+            "backgroundColor": "rgba(255, 255, 255, 0.95)",
+            "borderColor": "#999",
+            "borderWidth": 1,
+            "shadow": True
         },
         "plotOptions": {
             "column": {
@@ -1163,7 +1171,14 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str
                                 "color": "#3b82f6",
                                 "marker": {"enabled": True, "radius": 4}
                             }],
-                            "tooltip": {"valuePrefix": "$", "valueDecimals": 2},
+                            "tooltip": {
+                                "valuePrefix": "$",
+                                "valueDecimals": 2,
+                                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                                "borderColor": "#999",
+                                "borderWidth": 1,
+                                "shadow": True
+                            },
                             "credits": {"enabled": False}
                         }
                     },
@@ -1183,7 +1198,14 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str
                                 "color": "#10b981",
                                 "fillOpacity": 0.3
                             }],
-                            "tooltip": {"valueSuffix": "M", "valuePrefix": "$"},
+                            "tooltip": {
+                                "valueSuffix": "M",
+                                "valuePrefix": "$",
+                                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                                "borderColor": "#999",
+                                "borderWidth": 1,
+                                "shadow": True
+                            },
                             "credits": {"enabled": False}
                         }
                     }
