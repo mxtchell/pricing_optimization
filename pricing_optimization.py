@@ -449,6 +449,9 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     }).reset_index()
     base_size_target['avg_price'] = base_size_target['total_sales'] / base_size_target['total_units']
 
+    # Filter to top 15 base sizes by sales (to avoid cluttered chart)
+    base_size_target = base_size_target.nlargest(15, 'total_sales')
+
     base_size_comp = competitors_df.groupby('base_size').agg({
         'total_sales': 'sum',
         'total_units': 'sum',
@@ -456,11 +459,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     }).reset_index()
     base_size_comp['avg_price'] = base_size_comp['total_sales'] / base_size_comp['total_units']
 
-    # Merge and calculate price per oz
+    # Merge and calculate price per oz - use inner join to only show sizes where BARILLA competes
     base_size_comparison = base_size_target.merge(
         base_size_comp[['base_size', 'avg_price']],
         on='base_size',
-        how='outer',
+        how='inner',
         suffixes=('_target', '_comp')
     ).sort_values('avg_price_target', ascending=True)
 
