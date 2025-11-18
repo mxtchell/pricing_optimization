@@ -386,7 +386,13 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "color": color,
             "dataLabels": {
                 "enabled": True,
-                "format": f"${target:.2f}<br><span style='font-size:10px; color:{color}'>({gap_pct:+.0f}%)</span>"
+                "format": f"${target:.2f}\n({gap_pct:+.0f}%)",
+                "style": {
+                    "color": color,
+                    "fontSize": "11px",
+                    "fontWeight": "bold",
+                    "textOutline": "none"
+                }
             }
         })
 
@@ -406,19 +412,22 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "labels": {"format": "${value:.2f}"}
         },
         "tooltip": {
-            "backgroundColor": "white",
+            "backgroundColor": "rgba(255, 255, 255, 1)",
             "borderColor": "#333",
             "borderWidth": 2,
+            "hideDelay": 0,
             "style": {
                 "color": "#333",
-                "fontSize": "12px"
-            }
+                "fontSize": "12px",
+                "pointerEvents": "none"
+            },
+            "split": False,
+            "outside": False
         },
         "plotOptions": {
             "column": {
                 "dataLabels": {
-                    "enabled": True,
-                    "useHTML": True
+                    "enabled": True
                 }
             }
         },
