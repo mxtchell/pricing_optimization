@@ -895,6 +895,24 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
         ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
     ]
 
+    # Add filter pills for any additional filters (excluding brand)
+    if filters:
+        for filter_item in filters:
+            if isinstance(filter_item, dict) and filter_item.get('dim') != 'brand':
+                dim = filter_item['dim']
+                values = filter_item.get('val')
+                if values:
+                    if isinstance(values, list):
+                        values_display = ', '.join(str(v) for v in values)
+                    else:
+                        values_display = str(values)
+                    param_pills.append(
+                        ParameterDisplayDescription(
+                            key=f"filter_{dim}",
+                            value=f"{dim.replace('_', ' ').title()}: {values_display}"
+                        )
+                    )
+
     return SkillOutput(
         final_prompt=brief_summary,
         narrative=detailed_narrative,
@@ -1518,6 +1536,24 @@ Use markdown formatting with clear headers and bullet points. **Limit response t
             ParameterDisplayDescription(key="avg_price", value=f"Avg Price: ${overall_avg:.2f}"),
             ParameterDisplayDescription(key="price_range", value=f"Range: ${lowest['avg_price']:.2f} - ${highest['avg_price']:.2f}"),
         ])
+
+    # Add filter pills for any additional filters
+    if filters:
+        for filter_item in filters:
+            if isinstance(filter_item, dict):
+                dim = filter_item.get('dim')
+                values = filter_item.get('val')
+                if dim and values:
+                    if isinstance(values, list):
+                        values_display = ', '.join(str(v) for v in values)
+                    else:
+                        values_display = str(values)
+                    param_pills.append(
+                        ParameterDisplayDescription(
+                            key=f"filter_{dim}",
+                            value=f"{dim.replace('_', ' ').title()}: {values_display}"
+                        )
+                    )
 
     return SkillOutput(
         final_prompt=brief_summary,
