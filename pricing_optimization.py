@@ -276,10 +276,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     try:
         client = AnswerRocketClient()
 
-        # Build SQL query without brand filter
+        # Build SQL query without brand filter - always include base_size for price per oz chart
         sql_query = f"""
         SELECT
             {dimension},
+            base_size,
             brand,
             month_new,
             SUM(sales) as total_sales,
@@ -299,7 +300,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                         values_str = "', '".join(str(v).upper() for v in values)
                         sql_query += f" AND UPPER({dim}) IN ('{values_str}')"
 
-        sql_query += f" GROUP BY {dimension}, brand, month_new"
+        sql_query += f" GROUP BY {dimension}, base_size, brand, month_new"
 
         result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
 
