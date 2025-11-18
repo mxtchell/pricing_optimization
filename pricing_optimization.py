@@ -414,6 +414,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "borderWidth": 2,
             "borderRadius": 4,
             "shadow": True,
+            "useHTML": False,
             "style": {
                 "opacity": 1
             }
