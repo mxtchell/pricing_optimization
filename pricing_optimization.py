@@ -409,10 +409,14 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "shared": True,
             "valuePrefix": "$",
             "valueDecimals": 2,
-            "backgroundColor": "rgba(255, 255, 255, 0.95)",
+            "backgroundColor": "#ffffff",
             "borderColor": "#999",
-            "borderWidth": 1,
-            "shadow": True
+            "borderWidth": 2,
+            "borderRadius": 4,
+            "shadow": True,
+            "style": {
+                "opacity": 1
+            }
         },
         "plotOptions": {
             "column": {
@@ -519,10 +523,14 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "valuePrefix": "$",
             "valueDecimals": 2,
             "valueSuffix": "/oz",
-            "backgroundColor": "rgba(255, 255, 255, 0.95)",
+            "backgroundColor": "#ffffff",
             "borderColor": "#999",
-            "borderWidth": 1,
-            "shadow": True
+            "borderWidth": 2,
+            "borderRadius": 4,
+            "shadow": True,
+            "style": {
+                "opacity": 1
+            }
         },
         "plotOptions": {
             "column": {
@@ -1174,10 +1182,14 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str
                             "tooltip": {
                                 "valuePrefix": "$",
                                 "valueDecimals": 2,
-                                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                                "backgroundColor": "#ffffff",
                                 "borderColor": "#999",
-                                "borderWidth": 1,
-                                "shadow": True
+                                "borderWidth": 2,
+                                "borderRadius": 4,
+                                "shadow": True,
+                                "style": {
+                                    "opacity": 1
+                                }
                             },
                             "credits": {"enabled": False}
                         }
@@ -1201,10 +1213,14 @@ def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str
                             "tooltip": {
                                 "valueSuffix": "M",
                                 "valuePrefix": "$",
-                                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                                "backgroundColor": "#ffffff",
                                 "borderColor": "#999",
-                                "borderWidth": 1,
-                                "shadow": True
+                                "borderWidth": 2,
+                                "borderRadius": 4,
+                                "shadow": True,
+                                "style": {
+                                    "opacity": 1
+                                }
                             },
                             "credits": {"enabled": False}
                         }
