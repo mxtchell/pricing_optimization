@@ -779,53 +779,65 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     "parentId": "OpportunitiesTable",
                     "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
                 }
-            ] + [
-                # Table rows for top 5 underpriced items
-                item
-                for idx, row in comparison.nsmallest(5, 'price_premium_pct').iterrows()
-                for item in [
+            ] + (
+                # Table rows for top 5 underpriced items (only show if price_premium_pct < 0)
+                [
+                    item
+                    for idx, row in comparison[comparison['price_premium_pct'] < 0].nsmallest(5, 'price_premium_pct').iterrows()
+                    for item in [
+                        {
+                            "name": f"TR{idx}_Size",
+                            "type": "Paragraph",
+                            "children": "",
+                            "text": str(row[dimension]),
+                            "parentId": "OpportunitiesTable",
+                            "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
+                        },
+                        {
+                            "name": f"TR{idx}_Brand",
+                            "type": "Paragraph",
+                            "children": "",
+                            "text": f"${row['avg_price_target']:.2f}",
+                            "parentId": "OpportunitiesTable",
+                            "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
+                        },
+                        {
+                            "name": f"TR{idx}_Comp",
+                            "type": "Paragraph",
+                            "children": "",
+                            "text": f"${row['avg_price_comp']:.2f}",
+                            "parentId": "OpportunitiesTable",
+                            "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
+                        },
+                        {
+                            "name": f"TR{idx}_Gap",
+                            "type": "Paragraph",
+                            "children": "",
+                            "text": f"${(row['avg_price_target'] - row['avg_price_comp']):.2f} ({row['price_premium_pct']:+.0f}%)",
+                            "parentId": "OpportunitiesTable",
+                            "style": {"padding": "12px", "textAlign": "right", "color": "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
+                        },
+                        {
+                            "name": f"TR{idx}_Action",
+                            "type": "Paragraph",
+                            "children": "",
+                            "text": "Raise price to match competition",
+                            "parentId": "OpportunitiesTable",
+                            "style": {"padding": "12px", "fontSize": "13px", "color": "#666", "borderBottom": "1px solid #eee"}
+                        }
+                    ]
+                ] if len(comparison[comparison['price_premium_pct'] < 0]) > 0 else [
+                    # No underpricing opportunities message
                     {
-                        "name": f"TR{idx}_Size",
+                        "name": "NoOpps",
                         "type": "Paragraph",
                         "children": "",
-                        "text": str(row[dimension]),
+                        "text": f"No underpricing opportunities found - {brand_display} is priced at or above competition across all {dimension.replace('_', ' ')} values",
                         "parentId": "OpportunitiesTable",
-                        "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
-                    },
-                    {
-                        "name": f"TR{idx}_Brand",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"${row['avg_price_target']:.2f}",
-                        "parentId": "OpportunitiesTable",
-                        "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
-                    },
-                    {
-                        "name": f"TR{idx}_Comp",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"${row['avg_price_comp']:.2f}",
-                        "parentId": "OpportunitiesTable",
-                        "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
-                    },
-                    {
-                        "name": f"TR{idx}_Gap",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": f"${(row['avg_price_target'] - row['avg_price_comp']):.2f} ({row['price_premium_pct']:+.0f}%)",
-                        "parentId": "OpportunitiesTable",
-                        "style": {"padding": "12px", "textAlign": "right", "color": "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
-                    },
-                    {
-                        "name": f"TR{idx}_Action",
-                        "type": "Paragraph",
-                        "children": "",
-                        "text": "Raise price to match competition",
-                        "parentId": "OpportunitiesTable",
-                        "style": {"padding": "12px", "fontSize": "13px", "color": "#666", "borderBottom": "1px solid #eee"}
+                        "style": {"padding": "20px", "textAlign": "center", "color": "#28a745", "fontWeight": "500", "gridColumn": "1 / -1", "fontSize": "15px"}
                     }
                 ]
-            ] + [
+            ) + [
                 # Price Per Oz Chart
                 {
                     "name": "PricePerOzChart",
