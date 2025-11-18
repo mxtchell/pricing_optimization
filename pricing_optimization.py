@@ -409,14 +409,13 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "shared": True,
             "valuePrefix": "$",
             "valueDecimals": 2,
-            "backgroundColor": "#ffffff",
+            "backgroundColor": "white",
             "borderColor": "#999",
             "borderWidth": 2,
             "borderRadius": 4,
-            "shadow": True,
-            "style": {
-                "opacity": 1
-            }
+            "shadow": {"color": "rgba(0,0,0,0.3)", "offsetX": 1, "offsetY": 1, "opacity": 0.5, "width": 3},
+            "useHTML": False,
+            "opacity": 1
         },
         "plotOptions": {
             "column": {
