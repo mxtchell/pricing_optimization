@@ -230,7 +230,7 @@ def pricing_optimization(parameters: SkillInput):
 
         # Perform analysis based on type
         if analysis_type == "price_comparison":
-            analysis_result = analyze_price_comparison(df, dimension, brand_filter, filters)
+            analysis_result = analyze_price_comparison(df, dimension, brand_filter, filters, start_date, end_date)
         elif analysis_type == "elasticity":
             analysis_result = analyze_price_elasticity(df, dimension)
         elif analysis_type == "optimization":
@@ -257,10 +257,20 @@ def pricing_optimization(parameters: SkillInput):
         )
 
 
-def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filter: str, filters: list):
+def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filter: str, filters: list, start_date: str = None, end_date: str = None):
     """Compare target brand vs competition across dimension values"""
 
     print(f"DEBUG: analyze_competitive_comparison for {brand_filter} by {dimension}")
+
+    # Create time period string for pills
+    if start_date and end_date:
+        time_period = f"{start_date} to {end_date}"
+    elif start_date:
+        time_period = f"From {start_date}"
+    elif end_date:
+        time_period = f"Until {end_date}"
+    else:
+        time_period = "All available data"
 
     # Re-query to get ALL brands for comparison (not just the filtered brand)
     try:
@@ -357,15 +367,32 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     num_skus = len(comparison)
 
-    # Create grouped column chart
+    # Capitalize brand name
+    brand_display = brand_filter.upper()
+
+    # Create grouped column chart with color-coded bars
     categories = comparison[dimension].fillna('Unknown').tolist()
     target_prices = comparison['avg_price_target'].fillna(0).round(2).tolist()
     comp_prices = comparison['avg_price_comp'].fillna(0).round(2).tolist()
 
+    # Color-code BARILLA bars: green if above competition, red if below
+    target_data_with_colors = []
+    for idx, (target, comp, gap_pct) in enumerate(zip(target_prices, comp_prices, comparison['price_premium_pct'].fillna(0).tolist())):
+        gap_dollars = target - comp
+        color = "#22c55e" if gap_pct > 0 else "#ef4444"  # Green if premium, red if discount
+        target_data_with_colors.append({
+            "y": target,
+            "color": color,
+            "dataLabels": {
+                "enabled": True,
+                "format": f"${target:.2f}<br><span style='font-size:10px; color:{color}'>({gap_pct:+.0f}%)</span>"
+            }
+        })
+
     chart_config = {
         "chart": {"type": "column", "height": 500},
         "title": {
-            "text": f"{brand_filter} vs Competition by {dimension.replace('_', ' ').title()}",
+            "text": f"{brand_display} vs Competition by {dimension.replace('_', ' ').title()}",
             "style": {"fontSize": "20px", "fontWeight": "bold"}
         },
         "xAxis": {
@@ -386,19 +413,93 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "column": {
                 "dataLabels": {
                     "enabled": True,
-                    "format": "${point.y:.2f}"
+                    "useHTML": True
                 }
             }
         },
         "series": [
             {
-                "name": brand_filter,
-                "data": target_prices,
-                "color": "#3b82f6"
+                "name": brand_display,
+                "data": target_data_with_colors
             },
             {
                 "name": "Competition Avg",
                 "data": comp_prices,
+                "color": "#9ca3af",
+                "dataLabels": {
+                    "enabled": True,
+                    "format": "${point.y:.2f}"
+                }
+            }
+        ],
+        "legend": {
+            "align": "center",
+            "verticalAlign": "bottom"
+        },
+        "credits": {"enabled": False}
+    }
+
+    # Create price per oz chart
+    comparison['price_per_oz_target'] = comparison.apply(
+        lambda row: row['avg_price_target'] / float(row[dimension].split()[0]) if row[dimension] and row[dimension].split()[0].replace('.','').isdigit() else None,
+        axis=1
+    )
+    comparison['price_per_oz_comp'] = comparison.apply(
+        lambda row: row['avg_price_comp'] / float(row[dimension].split()[0]) if row[dimension] and row[dimension].split()[0].replace('.','').isdigit() else None,
+        axis=1
+    )
+
+    price_per_oz_data_target = []
+    for idx, row in comparison.iterrows():
+        if pd.notna(row['price_per_oz_target']):
+            gap_pct = row['price_premium_pct']
+            color = "#22c55e" if gap_pct > 0 else "#ef4444"
+            price_per_oz_data_target.append({
+                "y": round(row['price_per_oz_target'], 2),
+                "color": color
+            })
+        else:
+            price_per_oz_data_target.append(None)
+
+    price_per_oz_data_comp = [round(x, 2) if pd.notna(x) else None for x in comparison['price_per_oz_comp'].tolist()]
+
+    price_per_oz_chart = {
+        "chart": {"type": "column", "height": 400},
+        "title": {
+            "text": f"Price Per Ounce: {brand_display} vs Competition",
+            "style": {"fontSize": "18px", "fontWeight": "bold"}
+        },
+        "xAxis": {
+            "categories": categories,
+            "title": {"text": dimension.replace('_', ' ').title()}
+        },
+        "yAxis": {
+            "min": 0,
+            "title": {"text": "Price Per Ounce ($)"},
+            "labels": {"format": "${value:.2f}"}
+        },
+        "tooltip": {
+            "shared": True,
+            "valuePrefix": "$",
+            "valueDecimals": 2,
+            "valueSuffix": "/oz"
+        },
+        "plotOptions": {
+            "column": {
+                "dataLabels": {
+                    "enabled": True,
+                    "format": "${point.y:.2f}/oz"
+                }
+            }
+        },
+        "series": [
+            {
+                "name": brand_display,
+                "data": price_per_oz_data_target
+            },
+            {
+                "name": "Competition Avg",
+                "data": price_per_oz_data_comp,
                 "color": "#9ca3af"
             }
         ],
@@ -433,7 +534,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     "name": "BannerTitle",
                     "type": "Header",
                     "children": "",
-                    "text": f"Competitive Positioning: {brand_filter}",
+                    "text": f"Competitive Positioning: {brand_display}",
                     "parentId": "Banner",
                     "style": {"fontSize": "28px", "fontWeight": "bold", "color": "white", "marginBottom": "10px"}
                 },
@@ -441,7 +542,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     "name": "BannerSubtitle",
                     "type": "Paragraph",
                     "children": "",
-                    "text": f"Comparing {brand_filter} vs market average across {num_skus} {dimension.replace('_', ' ')} values",
+                    "text": f"Comparing {brand_display} vs market average across {num_skus} {dimension.replace('_', ' ')} values",
                     "parentId": "Banner",
                     "style": {"fontSize": "16px", "color": "rgba(255,255,255,0.9)"}
                 },
@@ -588,6 +689,118 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     "children": "",
                     "minHeight": "500px",
                     "options": chart_config
+                },
+                # Opportunities Table Header
+                {
+                    "name": "TableHeader",
+                    "type": "Header",
+                    "children": "",
+                    "text": "🎯 Top Pricing Opportunities",
+                    "style": {"fontSize": "20px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
+                },
+                # Opportunities Table
+                {
+                    "name": "OpportunitiesTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": "display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1.5fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 30px;"
+                },
+                # Table Headers
+                {
+                    "name": "TH_Size",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": dimension.replace('_', ' ').title(),
+                    "parentId": "OpportunitiesTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
+                },
+                {
+                    "name": "TH_Brand",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": f"{brand_display} Price",
+                    "parentId": "OpportunitiesTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "TH_Comp",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Competition",
+                    "parentId": "OpportunitiesTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "TH_Gap",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Gap ($/%)",
+                    "parentId": "OpportunitiesTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}
+                },
+                {
+                    "name": "TH_Action",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Opportunity",
+                    "parentId": "OpportunitiesTable",
+                    "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}
+                }
+            ] + [
+                # Table rows for top 5 underpriced items
+                item
+                for idx, row in comparison.nsmallest(5, 'price_premium_pct').iterrows()
+                for item in [
+                    {
+                        "name": f"TR{idx}_Size",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": str(row[dimension]),
+                        "parentId": "OpportunitiesTable",
+                        "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
+                    },
+                    {
+                        "name": f"TR{idx}_Brand",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${row['avg_price_target']:.2f}",
+                        "parentId": "OpportunitiesTable",
+                        "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
+                    },
+                    {
+                        "name": f"TR{idx}_Comp",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${row['avg_price_comp']:.2f}",
+                        "parentId": "OpportunitiesTable",
+                        "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}
+                    },
+                    {
+                        "name": f"TR{idx}_Gap",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": f"${(row['avg_price_target'] - row['avg_price_comp']):.2f} ({row['price_premium_pct']:+.0f}%)",
+                        "parentId": "OpportunitiesTable",
+                        "style": {"padding": "12px", "textAlign": "right", "color": "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}
+                    },
+                    {
+                        "name": f"TR{idx}_Action",
+                        "type": "Paragraph",
+                        "children": "",
+                        "text": "Raise price to match competition",
+                        "parentId": "OpportunitiesTable",
+                        "style": {"padding": "12px", "fontSize": "13px", "color": "#666", "borderBottom": "1px solid #eee"}
+                    }
+                ]
+            ] + [
+                # Price Per Oz Chart
+                {
+                    "name": "PricePerOzChart",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "minHeight": "400px",
+                    "options": price_per_oz_chart
                 }
             ]
         },
@@ -639,11 +852,12 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
         print(f"DEBUG: LLM insight generation failed: {e}")
         detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete."
 
-    brief_summary = f"{brand_filter} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
+    brief_summary = f"{brand_display} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
 
     # Create pills
     param_pills = [
-        ParameterDisplayDescription(key="brand", value=f"Brand: {brand_filter}"),
+        ParameterDisplayDescription(key="brand", value=f"Brand: {brand_display}"),
+        ParameterDisplayDescription(key="time_period", value=f"Period: {time_period}"),
         ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
         ParameterDisplayDescription(key="skus", value=f"SKUs: {num_skus}"),
         ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
@@ -657,14 +871,14 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
     )
 
 
-def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str = None, filters: list = None):
+def analyze_price_comparison(df: pd.DataFrame, dimension: str, brand_filter: str = None, filters: list = None, start_date: str = None, end_date: str = None):
     """Compare average prices across dimension values, or competitive comparison if brand filter exists"""
 
     print(f"DEBUG: analyze_price_comparison called with {len(df)} rows, dimension={dimension}, brand_filter={brand_filter}")
 
     # If brand filter exists, do competitive comparison
     if brand_filter:
-        return analyze_competitive_comparison(df, dimension, brand_filter, filters)
+        return analyze_competitive_comparison(df, dimension, brand_filter, filters, start_date, end_date)
 
     # Calculate average metrics by dimension
     summary = df.groupby(dimension).agg({
