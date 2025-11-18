@@ -412,6 +412,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
             "labels": {"format": "${value:.2f}"}
         },
         "tooltip": {
+            "shared": True,
             "backgroundColor": "rgba(255, 255, 255, 1)",
             "borderColor": "#333",
             "borderWidth": 2,
