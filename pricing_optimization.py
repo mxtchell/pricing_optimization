@@ -1000,7 +1000,14 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
             'threat_score': threat_score
         })
 
-    competitors_df_analysis = pd.DataFrame(competitor_metrics).sort_values('threat_score', ascending=False)
+    competitors_df_analysis = pd.DataFrame(competitor_metrics)
+
+    # Filter out tiny competitors (< 1% market share) to avoid noise
+    MIN_SHARE_THRESHOLD = 1.0
+    competitors_df_analysis = competitors_df_analysis[competitors_df_analysis['market_share'] >= MIN_SHARE_THRESHOLD]
+
+    # Sort by threat score
+    competitors_df_analysis = competitors_df_analysis.sort_values('threat_score', ascending=False)
 
     # Build Bubble Chart
     bubble_data = []
@@ -1028,7 +1035,7 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
             "style": {"fontSize": "20px", "fontWeight": "bold"}
         },
         "subtitle": {
-            "text": "Bubble size = Market Share | Red = Threat | Yellow = Watch | Green = Declining",
+            "text": "Showing competitors with ≥1% market share | Bubble size = Market Share | Red = Threat | Yellow = Watch | Green = Declining",
             "style": {"fontSize": "14px", "color": "#666"}
         },
         "xAxis": {
@@ -1098,10 +1105,11 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
                     "type": "FlexContainer",
                     "children": "",
                     "direction": "column",
-                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
                 },
                 # Headers
                 {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "TH_Sales", "type": "Paragraph", "children": "", "text": "Sales", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
                 {"name": "TH_Share", "type": "Paragraph", "children": "", "text": "Market Share", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
                 {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Volume Growth", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
                 {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Price Change", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
@@ -1111,6 +1119,7 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
                 for idx, row in top_threats.iterrows()
                 for item in [
                     {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Sales", "type": "Paragraph", "children": "", "text": f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
                     {"name": f"TR{idx}_Share", "type": "Paragraph", "children": "", "text": f"{row['market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
                     {"name": f"TR{idx}_Vol", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
                     {"name": f"TR{idx}_Price", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
