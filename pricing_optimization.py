@@ -875,49 +875,6 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     html = wire_layout(comparison_layout, {})
 
-    # Generate insights with LLM
-    ar_utils = ArUtils()
-
-    # Get top 3 premium and top 3 discount items
-    premium_items = comparison_clean.nlargest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
-    discount_items = comparison_clean.nsmallest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
-
-    insight_prompt = f"""Analyze this competitive pricing comparison:
-
-**Brand**: {brand_filter}
-**Dimension**: {dimension.replace('_', ' ').title()}
-**Overall Position**: {weighted_premium:+.1f}% avg premium vs competition
-**Volume Share**: {volume_share:.1f}%
-
-**Premium Positioned** (priced above competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in premium_items.iterrows()]) if len(premium_items) > 0 else "None"}
-
-**Value Positioned** (priced below competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in discount_items.iterrows()]) if len(discount_items) > 0 else "None"}
-
-Provide strategic analysis:
-1. **Competitive Positioning**: What does the pricing pattern reveal about {brand_filter}'s strategy?
-2. **Opportunities**: Where can {brand_filter} raise prices to match or exceed competition?
-3. **Risks**: Where is {brand_filter} overpriced and at risk of losing share?
-4. **Recommendations**: Specific actions for pricing optimization.
-
-Use markdown formatting. **Limit response to 250 words maximum.**"""
-
-    try:
-        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
-        if not detailed_narrative:
-            detailed_narrative = f"""## Competitive Positioning Analysis
-
-{brand_filter} is positioned at {weighted_premium:+.1f}% vs competition on average, holding {volume_share:.1f}% volume share.
-
-**Key Findings:**
-- Price leadership in {price_leaders} of {num_skus} {dimension.replace('_', ' ')} values analyzed
-- Strategic mix of premium and value positioning across portfolio
-"""
-    except Exception as e:
-        print(f"DEBUG: LLM insight generation failed: {e}")
-        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete."
-
     brief_summary = f"{brand_display} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
 
     # Create pills
@@ -1087,6 +1044,63 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
 
     # Build Threat Table
     top_threats = competitors_df_analysis.head(5)
+
+    # Generate insights with LLM (after threat calculation)
+    ar_utils = ArUtils()
+
+    # Get top 3 premium and top 3 discount items for pricing insights
+    premium_items = comparison_clean.nlargest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
+    discount_items = comparison_clean.nsmallest(3, 'price_premium_pct') if len(comparison_clean) > 0 else pd.DataFrame()
+
+    # Format top threats for LLM prompt
+    threat_summary = []
+    for _, row in top_threats.iterrows():
+        threat_level = "🔴 HIGH" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡 WATCH" if row['volume_growth'] > 0 else "🟢 LOW")
+        sales_display = f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K"
+        threat_summary.append(f"- {row['brand']} ({sales_display}, {row['market_share']:.1f}% share): {threat_level} - Volume {row['volume_growth']:+.1f}%, Price {row['price_change']:+.1f}%")
+
+    insight_prompt = f"""Analyze this competitive pricing and threat landscape:
+
+**Brand**: {brand_filter}
+**Dimension**: {dimension.replace('_', ' ').title()}
+**Overall Position**: {weighted_premium:+.1f}% avg premium vs competition
+**Volume Share**: {volume_share:.1f}%
+
+**Premium Positioned** (priced above competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in premium_items.iterrows()]) if len(premium_items) > 0 else "None"}
+
+**Value Positioned** (priced below competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in discount_items.iterrows()]) if len(discount_items) > 0 else "None"}
+
+**Top Competitive Threats** (competitors with ≥1% market share):
+{chr(10).join(threat_summary) if len(threat_summary) > 0 else "None"}
+
+Provide strategic analysis with these sections:
+1. **Competitive Positioning**: What does the pricing pattern reveal about {brand_filter}'s strategy?
+2. **Opportunities**: Where can {brand_filter} raise prices to match or exceed competition?
+3. **Competitive Threats**: Which competitors pose the biggest risk and why? (Focus on growing volume + flat/declining prices)
+4. **Risks**: Where is {brand_filter} overpriced and at risk of losing share?
+5. **Recommendations**: Specific actions for pricing optimization and competitive response.
+
+Use markdown formatting. **Limit response to 350 words maximum.**"""
+
+    try:
+        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
+        if not detailed_narrative:
+            detailed_narrative = f"""## Competitive Positioning Analysis
+
+{brand_filter} is positioned at {weighted_premium:+.1f}% vs competition on average, holding {volume_share:.1f}% volume share.
+
+**Key Findings:**
+- Price leadership in {price_leaders} of {num_skus} {dimension.replace('_', ' ')} values analyzed
+- Strategic mix of premium and value positioning across portfolio
+
+**Competitive Threats:**
+{chr(10).join(threat_summary[:3]) if len(threat_summary) > 0 else "No major threats identified"}
+"""
+    except Exception as e:
+        print(f"DEBUG: LLM insight generation failed: {e}")
+        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete."
 
     threat_table_layout = {
         "layoutJson": {
