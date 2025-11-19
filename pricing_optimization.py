@@ -947,10 +947,328 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
                         )
                     )
 
+    # ===== TAB 2: COMPETITOR THREAT ANALYSIS =====
+    # Calculate competitor metrics for threat detection
+    competitor_metrics = []
+
+    for brand in full_df['brand'].unique():
+        if brand.upper() == brand_filter.upper():
+            continue  # Skip target brand
+
+        brand_data = full_df[full_df['brand'] == brand]
+
+        # Calculate current period metrics
+        current_sales = brand_data['total_sales'].sum()
+        current_units = brand_data['total_units'].sum()
+        current_volume = brand_data['total_volume'].sum()
+        current_price = current_sales / current_units if current_units > 0 else 0
+
+        # Calculate growth (compare first half vs second half of time period)
+        brand_data_sorted = brand_data.sort_values('month_new')
+        mid_point = len(brand_data_sorted) // 2
+
+        if mid_point > 0:
+            early_period = brand_data_sorted.iloc[:mid_point]
+            late_period = brand_data_sorted.iloc[mid_point:]
+
+            early_volume = early_period['total_units'].sum()
+            late_volume = late_period['total_units'].sum()
+            early_price = early_period['total_sales'].sum() / early_period['total_units'].sum() if early_period['total_units'].sum() > 0 else 0
+            late_price = late_period['total_sales'].sum() / late_period['total_units'].sum() if late_period['total_units'].sum() > 0 else 0
+
+            volume_growth = ((late_volume - early_volume) / early_volume * 100) if early_volume > 0 else 0
+            price_change = ((late_price - early_price) / early_price * 100) if early_price > 0 else 0
+        else:
+            volume_growth = 0
+            price_change = 0
+
+        # Market share
+        total_market_units = full_df['total_units'].sum()
+        market_share = (current_units / total_market_units * 100) if total_market_units > 0 else 0
+
+        # Threat score: high volume growth + low/negative price change = threat
+        # Scale: volume growth weight 0.7, inverse price change weight 0.3
+        threat_score = (volume_growth * 0.7) - (price_change * 0.3)
+
+        competitor_metrics.append({
+            'brand': brand,
+            'market_share': market_share,
+            'volume_growth': volume_growth,
+            'price_change': price_change,
+            'current_sales': current_sales,
+            'current_price': current_price,
+            'threat_score': threat_score
+        })
+
+    competitors_df_analysis = pd.DataFrame(competitor_metrics).sort_values('threat_score', ascending=False)
+
+    # Build Bubble Chart
+    bubble_data = []
+    for _, row in competitors_df_analysis.iterrows():
+        # Determine color based on threat
+        if row['volume_growth'] > 0 and row['price_change'] <= 0:
+            color = '#ef4444'  # Red - highest threat
+        elif row['volume_growth'] > 0:
+            color = '#fbbf24'  # Yellow - watch
+        else:
+            color = '#10b981'  # Green - declining
+
+        bubble_data.append({
+            'x': round(row['price_change'], 1),
+            'y': round(row['volume_growth'], 1),
+            'z': round(row['market_share'], 1),
+            'name': row['brand'],
+            'color': color
+        })
+
+    bubble_chart = {
+        "chart": {"type": "bubble", "height": 500, "zoomType": "xy"},
+        "title": {
+            "text": "Competitive Threat Matrix",
+            "style": {"fontSize": "20px", "fontWeight": "bold"}
+        },
+        "subtitle": {
+            "text": "Bubble size = Market Share | Red = Threat | Yellow = Watch | Green = Declining",
+            "style": {"fontSize": "14px", "color": "#666"}
+        },
+        "xAxis": {
+            "title": {"text": "Price Change (%)"},
+            "gridLineWidth": 1,
+            "plotLines": [{
+                "color": "#999",
+                "width": 2,
+                "value": 0,
+                "dashStyle": "Dash"
+            }]
+        },
+        "yAxis": {
+            "title": {"text": "Volume Growth (%)"},
+            "gridLineWidth": 1,
+            "plotLines": [{
+                "color": "#999",
+                "width": 2,
+                "value": 0,
+                "dashStyle": "Dash"
+            }]
+        },
+        "tooltip": {
+            "shared": False,
+            "backgroundColor": "rgba(255, 255, 255, 1)",
+            "borderColor": "#333",
+            "borderWidth": 2,
+            "useHTML": False,
+            "pointFormat": "<b>{point.name}</b><br/>Volume Growth: {point.y}%<br/>Price Change: {point.x}%<br/>Market Share: {point.z}%"
+        },
+        "plotOptions": {
+            "bubble": {
+                "minSize": 10,
+                "maxSize": 60,
+                "dataLabels": {
+                    "enabled": True,
+                    "format": "{point.name}",
+                    "style": {"fontSize": "10px", "fontWeight": "bold", "textOutline": "none"}
+                }
+            }
+        },
+        "series": [{
+            "name": "Competitors",
+            "data": bubble_data
+        }],
+        "legend": {"enabled": False},
+        "credits": {"enabled": False}
+    }
+
+    # Build Threat Table
+    top_threats = competitors_df_analysis.head(5)
+
+    threat_table_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"padding": "20px"},
+            "children": [
+                {
+                    "name": "ThreatHeader",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Top 5 Competitor Threats",
+                    "style": {"fontSize": "20px", "fontWeight": "bold", "marginBottom": "15px"}
+                },
+                {
+                    "name": "ThreatTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                },
+                # Headers
+                {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "TH_Share", "type": "Paragraph", "children": "", "text": "Market Share", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Volume Growth", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Price Change", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_Threat", "type": "Paragraph", "children": "", "text": "Threat Level", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}}
+            ] + [
+                item
+                for idx, row in top_threats.iterrows()
+                for item in [
+                    {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Share", "type": "Paragraph", "children": "", "text": f"{row['market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Vol", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Price", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Threat", "type": "Paragraph", "children": "", "text": "🔴 HIGH" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡 WATCH" if row['volume_growth'] > 0 else "🟢 LOW"), "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "center", "fontWeight": "bold", "borderBottom": "1px solid #eee"}}
+                ]
+            ]
+        },
+        "inputVariables": []
+    }
+
+    threat_table_html = wire_layout(threat_table_layout, {})
+
+    # Combine bubble chart and threat table in Tab 2
+    tab2_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"padding": "20px"},
+            "children": [
+                {
+                    "name": "BubbleChart",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "minHeight": "500px",
+                    "options": bubble_chart
+                },
+                {
+                    "name": "ThreatTableContainer",
+                    "type": "FlexContainer",
+                    "children": "ThreatTableContent",
+                    "direction": "column",
+                    "style": {"marginTop": "30px"}
+                },
+                {
+                    "name": "ThreatTableContent",
+                    "type": "Paragraph",
+                    "children": "",
+                    "parentId": "ThreatTableContainer",
+                    "text": ""
+                }
+            ]
+        },
+        "inputVariables": []
+    }
+
+    # For now, just embed the threat table HTML directly
+    # Build combined layout more simply
+    combined_tab2_html = f"""
+    <div style="padding: 20px;">
+        {wire_layout({"layoutJson": {"type": "Document", "children": [{"name": "BC", "type": "HighchartsChart", "children": "", "minHeight": "500px", "options": bubble_chart}]}, "inputVariables": []}, {})}
+        <div style="margin-top: 30px;">
+            {threat_table_html}
+        </div>
+    </div>
+    """
+
+    # ===== TAB 3: MARKET SHARE TREND =====
+    # Calculate monthly market share for top brands
+    monthly_share = full_df.groupby(['month_new', 'brand']).agg({
+        'total_units': 'sum'
+    }).reset_index()
+
+    # Get top 6 brands by total volume (including target brand)
+    top_brands = full_df.groupby('brand')['total_units'].sum().nlargest(6).index.tolist()
+
+    # Filter to top brands
+    monthly_share_top = monthly_share[monthly_share['brand'].isin(top_brands)]
+
+    # Calculate % share by month
+    monthly_totals = monthly_share_top.groupby('month_new')['total_units'].sum()
+    monthly_share_top['share_pct'] = monthly_share_top.apply(
+        lambda row: (row['total_units'] / monthly_totals[row['month_new']] * 100) if monthly_totals[row['month_new']] > 0 else 0,
+        axis=1
+    )
+
+    # Pivot for stacked area chart
+    share_pivot = monthly_share_top.pivot(index='month_new', columns='brand', values='share_pct').fillna(0)
+
+    # Sort by date
+    share_pivot = share_pivot.sort_index()
+
+    # Build series data
+    months = [str(m)[:10] for m in share_pivot.index.tolist()]
+    series_data = []
+
+    for brand in share_pivot.columns:
+        # Highlight target brand
+        color = "#3b82f6" if brand.upper() == brand_filter.upper() else None
+        series_data.append({
+            "name": brand,
+            "data": [round(x, 1) for x in share_pivot[brand].tolist()],
+            "color": color
+        })
+
+    market_share_chart = {
+        "chart": {"type": "area", "height": 500},
+        "title": {
+            "text": "Market Share Trend Over Time",
+            "style": {"fontSize": "20px", "fontWeight": "bold"}
+        },
+        "subtitle": {
+            "text": f"{brand_display} vs Top Competitors",
+            "style": {"fontSize": "14px"}
+        },
+        "xAxis": {
+            "categories": months,
+            "title": {"text": "Month"}
+        },
+        "yAxis": {
+            "min": 0,
+            "max": 100,
+            "title": {"text": "Market Share (%)"},
+            "labels": {"format": "{value}%"}
+        },
+        "tooltip": {
+            "shared": True,
+            "backgroundColor": "rgba(255, 255, 255, 1)",
+            "borderColor": "#333",
+            "borderWidth": 2,
+            "valueSuffix": "%"
+        },
+        "plotOptions": {
+            "area": {
+                "stacking": "normal",
+                "lineWidth": 1,
+                "marker": {"enabled": False}
+            }
+        },
+        "series": series_data,
+        "legend": {
+            "align": "center",
+            "verticalAlign": "bottom"
+        },
+        "credits": {"enabled": False}
+    }
+
+    market_share_html = wire_layout({
+        "layoutJson": {
+            "type": "Document",
+            "style": {"padding": "20px"},
+            "children": [{
+                "name": "MarketShareChart",
+                "type": "HighchartsChart",
+                "children": "",
+                "minHeight": "500px",
+                "options": market_share_chart
+            }]
+        },
+        "inputVariables": []
+    }, {})
+
     return SkillOutput(
         final_prompt=brief_summary,
         narrative=detailed_narrative,
-        visualizations=[SkillVisualization(title="Competitive Comparison", layout=html)],
+        visualizations=[
+            SkillVisualization(title="Competitive Comparison", layout=html),
+            SkillVisualization(title="Competitor Threats", layout=combined_tab2_html),
+            SkillVisualization(title="Market Share Trend", layout=market_share_html)
+        ],
         parameter_display_descriptions=param_pills
     )
 
