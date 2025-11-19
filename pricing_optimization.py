@@ -1121,9 +1121,7 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
         "inputVariables": []
     }
 
-    threat_table_html = wire_layout(threat_table_layout, {})
-
-    # Combine bubble chart and threat table in Tab 2
+    # Combine bubble chart and threat table in Tab 2 - merge layouts
     tab2_layout = {
         "layoutJson": {
             "type": "Document",
@@ -1135,36 +1133,13 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
                     "children": "",
                     "minHeight": "500px",
                     "options": bubble_chart
-                },
-                {
-                    "name": "ThreatTableContainer",
-                    "type": "FlexContainer",
-                    "children": "ThreatTableContent",
-                    "direction": "column",
-                    "style": {"marginTop": "30px"}
-                },
-                {
-                    "name": "ThreatTableContent",
-                    "type": "Paragraph",
-                    "children": "",
-                    "parentId": "ThreatTableContainer",
-                    "text": ""
                 }
-            ]
+            ] + threat_table_layout["layoutJson"]["children"]
         },
         "inputVariables": []
     }
 
-    # For now, just embed the threat table HTML directly
-    # Build combined layout more simply
-    combined_tab2_html = f"""
-    <div style="padding: 20px;">
-        {wire_layout({"layoutJson": {"type": "Document", "children": [{"name": "BC", "type": "HighchartsChart", "children": "", "minHeight": "500px", "options": bubble_chart}]}, "inputVariables": []}, {})}
-        <div style="margin-top: 30px;">
-            {threat_table_html}
-        </div>
-    </div>
-    """
+    combined_tab2_html = wire_layout(tab2_layout, {})
 
     # ===== TAB 3: MARKET SHARE TREND =====
     # Calculate monthly market share for top brands
@@ -1176,7 +1151,7 @@ Use markdown formatting. **Limit response to 250 words maximum.**"""
     top_brands = full_df.groupby('brand')['total_units'].sum().nlargest(6).index.tolist()
 
     # Filter to top brands
-    monthly_share_top = monthly_share[monthly_share['brand'].isin(top_brands)]
+    monthly_share_top = monthly_share[monthly_share['brand'].isin(top_brands)].copy()
 
     # Calculate % share by month
     monthly_totals = monthly_share_top.groupby('month_new')['total_units'].sum()
