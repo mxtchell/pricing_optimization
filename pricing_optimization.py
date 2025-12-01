@@ -1098,48 +1098,18 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         sales_display = f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K"
         threat_summary.append(f"- {row['brand']} ({sales_display}, {row['market_share']:.1f}% share): {threat_level} - Volume {row['volume_growth']:+.1f}%, Price {row['price_change']:+.1f}%")
 
-    insight_prompt = f"""Analyze this competitive pricing and threat landscape:
-
-**Brand**: {brand_filter}
-**Dimension**: {dimension.replace('_', ' ').title()}
-**Overall Position**: {weighted_premium:+.1f}% avg premium vs competition
-**Volume Share**: {volume_share:.1f}%
-
-**Premium Positioned** (priced above competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in premium_items.iterrows()]) if len(premium_items) > 0 else "None"}
-
-**Value Positioned** (priced below competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in discount_items.iterrows()]) if len(discount_items) > 0 else "None"}
-
-**Top Competitive Threats** (competitors with ≥1% market share):
-{chr(10).join(threat_summary) if len(threat_summary) > 0 else "None"}
-
-Provide strategic analysis with these sections:
-1. **Competitive Positioning**: What does the pricing pattern reveal about {brand_filter}'s strategy?
-2. **Opportunities**: Where can {brand_filter} raise prices to match or exceed competition?
-3. **Competitive Threats**: Which competitors pose the biggest risk and why? (Focus on growing volume + flat/declining prices)
-4. **Risks**: Where is {brand_filter} overpriced and at risk of losing share?
-5. **Recommendations**: Specific actions for pricing optimization and competitive response.
-
-Use markdown formatting. **Limit response to 350 words maximum.**"""
-
-    try:
-        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
-        if not detailed_narrative:
-            detailed_narrative = f"""## Competitive Positioning Analysis
-
-{brand_filter} is positioned at {weighted_premium:+.1f}% vs competition on average, holding {volume_share:.1f}% volume share.
-
-**Key Findings:**
-- Price leadership in {price_leaders} of {num_skus} {dimension.replace('_', ' ')} values analyzed
-- Strategic mix of premium and value positioning across portfolio
-
-**Competitive Threats:**
-{chr(10).join(threat_summary[:3]) if len(threat_summary) > 0 else "No major threats identified"}
-"""
-    except Exception as e:
-        print(f"DEBUG: LLM insight generation failed: {e}")
-        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete."
+    # Store data for LLM insight generation (will be done after price index analysis)
+    insight_data = {
+        'brand_filter': brand_filter,
+        'dimension': dimension,
+        'weighted_premium': weighted_premium,
+        'volume_share': volume_share,
+        'premium_items': premium_items,
+        'discount_items': discount_items,
+        'threat_summary': threat_summary,
+        'price_leaders': price_leaders,
+        'num_skus': num_skus
+    }
 
     threat_table_layout = {
         "layoutJson": {
@@ -1581,8 +1551,9 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
                     "direction": "row",
                     "style": {"marginBottom": "20px", "gap": "15px", "alignItems": "center"}
                 },
-                {"name": "TierLabel", "type": "Paragraph", "children": "", "text": f"{brand_filter} Price Tier:", "parentId": "TierBadge", "style": {"fontWeight": "bold", "fontSize": "16px"}},
-                {"name": "TierValue", "type": "Paragraph", "children": "", "text": f"{target_tier} (Index: {target_curr_idx:.0f})", "parentId": "TierBadge", "style": {"backgroundColor": target_tier_color, "color": "white", "padding": "6px 16px", "borderRadius": "20px", "fontWeight": "bold", "fontSize": "14px"}},
+                {"name": "TierLabel", "type": "Paragraph", "children": "", "text": f"{brand_filter} Price Tier:", "parentId": "TierBadge", "style": {"fontWeight": "600", "fontSize": "14px", "color": "#374151"}},
+                {"name": "TierValue", "type": "Paragraph", "children": "", "text": target_tier, "parentId": "TierBadge", "style": {"backgroundColor": target_tier_color, "color": "white", "padding": "4px 12px", "borderRadius": "12px", "fontWeight": "600", "fontSize": "12px"}},
+                {"name": "TierIndex", "type": "Paragraph", "children": "", "text": f"Index: {target_curr_idx:.0f}", "parentId": "TierBadge", "style": {"fontSize": "13px", "color": "#6b7280"}},
 
                 # Diagnostic insight box
                 {
@@ -1686,6 +1657,80 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     }
 
     price_index_html = wire_layout(price_index_layout, {})
+
+    # ===== GENERATE LLM INSIGHTS =====
+    # Now that we have price index analysis, generate comprehensive insights
+
+    # Format peer comparison for LLM
+    peer_summary = []
+    for p in peer_brands[:5]:
+        if p['brand'].upper() != brand_filter.upper():
+            peer_summary.append(f"- {p['brand']}: Index {p['current_index']:.0f} ({p['index_change']:+.0f} pts YoY)")
+
+    # Format mix analysis for LLM
+    mix_summary = []
+    for bs in base_size_analysis[:5]:
+        if abs(bs['index_change']) > 5 or abs(bs['mix_change']) > 5:
+            mix_summary.append(f"- {bs['base_size']}: Index {bs['index_change']:+.0f} pts, Mix {bs['mix_change']:+.1f}%")
+
+    insight_prompt = f"""Analyze this competitive pricing and price index landscape:
+
+**Brand**: {insight_data['brand_filter']}
+**Dimension**: {insight_data['dimension'].replace('_', ' ').title()}
+**Overall Position**: {insight_data['weighted_premium']:+.1f}% avg premium vs competition
+**Volume Share**: {insight_data['volume_share']:.1f}%
+
+**Price Index Analysis**:
+- Current Price Tier: {target_tier} (Index: {target_curr_idx:.0f})
+- Index Change YoY: {target_idx_change:+.1f} pts
+- Diagnostic: {diagnostic_text}
+
+**{target_tier} Tier Peers**:
+{chr(10).join(peer_summary) if peer_summary else "No direct peers with significant changes"}
+
+**Pack Size Mix Changes** (significant shifts):
+{chr(10).join(mix_summary) if mix_summary else "No significant mix shifts detected"}
+
+**Premium Positioned** (priced above competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in insight_data['premium_items'].iterrows()]) if len(insight_data['premium_items']) > 0 else "None"}
+
+**Value Positioned** (priced below competition):
+{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in insight_data['discount_items'].iterrows()]) if len(insight_data['discount_items']) > 0 else "None"}
+
+**Top Competitive Threats**:
+{chr(10).join(insight_data['threat_summary']) if len(insight_data['threat_summary']) > 0 else "None"}
+
+Provide strategic analysis with these sections:
+1. **Competitive Positioning**: What does the pricing pattern and price index reveal about {brand_filter}'s strategy?
+2. **Price Index Assessment**: Is the index change due to mix shift or actual pricing? What does peer comparison tell us?
+3. **Opportunities**: Where can {brand_filter} optimize pricing?
+4. **Competitive Threats**: Which competitors in the {target_tier} tier pose the biggest risk?
+5. **Risks**: Where is {brand_filter} vulnerable (overpriced or index declining)?
+6. **Recommendations**: Specific actions for pricing and competitive response.
+
+Use markdown formatting. **Limit response to 400 words maximum.**"""
+
+    try:
+        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
+        if not detailed_narrative:
+            detailed_narrative = f"""## Competitive Positioning Analysis
+
+{brand_filter} is positioned at {insight_data['weighted_premium']:+.1f}% vs competition on average, holding {insight_data['volume_share']:.1f}% volume share.
+
+**Price Index**: {target_tier} tier (Index: {target_curr_idx:.0f}), changed {target_idx_change:+.1f} pts YoY.
+
+**Assessment**: {diagnostic_text}
+
+**Key Findings:**
+- Price leadership in {insight_data['price_leaders']} of {insight_data['num_skus']} {dimension.replace('_', ' ')} values analyzed
+- Strategic mix of premium and value positioning across portfolio
+
+**Competitive Threats:**
+{chr(10).join(insight_data['threat_summary'][:3]) if len(insight_data['threat_summary']) > 0 else "No major threats identified"}
+"""
+    except Exception as e:
+        print(f"DEBUG: LLM insight generation failed: {e}")
+        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete. Price Index: {target_curr_idx:.0f} ({target_tier} tier)."
 
     return SkillOutput(
         final_prompt=brief_summary,
