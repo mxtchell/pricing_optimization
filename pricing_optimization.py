@@ -1355,17 +1355,31 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         "inputVariables": []
     }, {})
 
-    # Add prior period pill for Tab 2
-    if mid_point_date:
+    # Add prior/current period pills for Tab 2
+    if mid_point_date and len(all_months) >= 2:
         first_month = str(all_months[0])[:10]
-        last_prior_month = str(all_months[len(all_months) // 2 - 1])[:10] if len(all_months) > 1 else first_month
+        mid_idx = len(all_months) // 2
+        # Prior period ends at the month before midpoint
+        last_prior_month = str(all_months[mid_idx - 1])[:10] if mid_idx > 0 else first_month
         first_curr_month = str(mid_point_date)[:10]
         last_month = str(all_months[-1])[:10]
+
+        # Format nicely - if same month, just show one date
+        if first_month == last_prior_month:
+            prior_text = f"Prior: {first_month[:7]}"  # Just YYYY-MM
+        else:
+            prior_text = f"Prior: {first_month[:7]} to {last_prior_month[:7]}"
+
+        if first_curr_month == last_month:
+            curr_text = f"Current: {first_curr_month[:7]}"
+        else:
+            curr_text = f"Current: {first_curr_month[:7]} to {last_month[:7]}"
+
         param_pills.append(
-            ParameterDisplayDescription(key="prior_period", value=f"Prior: {first_month} to {last_prior_month}")
+            ParameterDisplayDescription(key="prior_period", value=prior_text)
         )
         param_pills.append(
-            ParameterDisplayDescription(key="current_period", value=f"Current: {first_curr_month} to {last_month}")
+            ParameterDisplayDescription(key="current_period", value=curr_text)
         )
 
     return SkillOutput(
