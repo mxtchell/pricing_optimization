@@ -77,7 +77,27 @@ def pricing_optimization(parameters: SkillInput):
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
     price_change_pct = parameters.arguments.price_change_pct or 10
 
+    # Clean and validate date parameters
+    def clean_date(date_val):
+        if not date_val:
+            return None
+        # Convert to string and strip whitespace/trailing commas
+        date_str = str(date_val).strip().rstrip(',')
+        # Handle various formats
+        if len(date_str) == 7 and date_str[4] == '-':  # YYYY-MM format
+            date_str = f"{date_str}-01"  # Add day
+        elif len(date_str) == 4:  # YYYY format
+            date_str = f"{date_str}-01-01"  # Add month and day
+        # Validate it looks like a date
+        if len(date_str) >= 10 and date_str[4] == '-' and date_str[7] == '-':
+            return date_str[:10]  # Return YYYY-MM-DD portion
+        return None
+
+    start_date = clean_date(start_date)
+    end_date = clean_date(end_date)
+
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
+    print(f"DEBUG: Cleaned dates - start: {start_date}, end: {end_date}")
 
     # Validate brand filter is present for optimization analysis
     if analysis_type == "optimization":
