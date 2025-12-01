@@ -1294,6 +1294,26 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         "inputVariables": []
     }, {})
 
+    # Add prior/current period pills for Tab 2
+    if mid_point_date and len(all_months) >= 2:
+        first_month = str(all_months[0])[:7]  # YYYY-MM
+        last_prior = str(all_months[mid_point_idx - 1])[:7] if mid_point_idx > 0 else first_month
+        first_curr = str(mid_point_date)[:7]
+        last_month = str(all_months[-1])[:7]
+
+        if first_month == last_prior:
+            prior_text = f"Prior: {first_month}"
+        else:
+            prior_text = f"Prior: {first_month} to {last_prior}"
+
+        if first_curr == last_month:
+            curr_text = f"Current: {first_curr}"
+        else:
+            curr_text = f"Current: {first_curr} to {last_month}"
+
+        param_pills.append(ParameterDisplayDescription(key="prior_period", value=prior_text))
+        param_pills.append(ParameterDisplayDescription(key="current_period", value=curr_text))
+
     return SkillOutput(
         final_prompt=brief_summary,
         narrative=detailed_narrative,
