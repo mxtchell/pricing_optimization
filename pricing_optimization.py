@@ -290,6 +290,12 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         WHERE 1=1
         """
 
+        # Add date filters
+        if start_date:
+            sql_query += f" AND month_new >= '{start_date}'"
+        if end_date:
+            sql_query += f" AND month_new <= '{end_date}'"
+
         # Add non-brand filters
         if filters:
             for filter_item in filters:
@@ -1209,8 +1215,34 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     combined_tab2_html = wire_layout(tab2_layout, {})
 
     # ===== TAB 3: MARKET SHARE TREND =====
+    # Query full date range for market share trend (no date filters)
+    try:
+        trend_sql = f"""
+        SELECT brand, month_new, SUM(units) as total_units
+        FROM read_csv('pasta_2025.csv')
+        WHERE 1=1
+        """
+        # Add non-brand, non-date filters only
+        if filters:
+            for filter_item in filters:
+                if isinstance(filter_item, dict) and filter_item.get('dim') != 'brand':
+                    dim = filter_item['dim']
+                    values = filter_item.get('val')
+                    if isinstance(values, list):
+                        values_str = "', '".join(str(v).upper() for v in values)
+                        trend_sql += f" AND UPPER({dim}) IN ('{values_str}')"
+        trend_sql += " GROUP BY brand, month_new"
+
+        trend_result = client.data.execute_sql_query(DATABASE_ID, trend_sql, row_limit=10000)
+        if trend_result.success and hasattr(trend_result, 'df'):
+            trend_df = trend_result.df
+        else:
+            trend_df = full_df  # Fallback to filtered data
+    except:
+        trend_df = full_df  # Fallback to filtered data
+
     # Calculate monthly market share for top brands
-    monthly_share = full_df.groupby(['month_new', 'brand']).agg({
+    monthly_share = trend_df.groupby(['month_new', 'brand']).agg({
         'total_units': 'sum'
     }).reset_index()
 
