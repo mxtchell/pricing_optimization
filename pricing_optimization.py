@@ -936,6 +936,9 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     current_period_start = curr_start
     current_period_end = curr_end
 
+    # Convert month_new to datetime for comparison
+    full_df['month_new'] = pd.to_datetime(full_df['month_new'])
+
     # Filter data for each period
     current_df = full_df[(full_df['month_new'] >= curr_start) & (full_df['month_new'] <= curr_end)]
     prior_df = full_df[(full_df['month_new'] >= prior_start) & (full_df['month_new'] <= prior_end)]
