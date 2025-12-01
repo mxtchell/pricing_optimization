@@ -877,10 +877,9 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     brief_summary = f"{brand_display} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
 
-    # Create pills
+    # Create pills (prior/current period pills added later after mid_point_date is calculated)
     param_pills = [
         ParameterDisplayDescription(key="brand", value=f"Brand: {brand_display}"),
-        ParameterDisplayDescription(key="time_period", value=f"Period: {time_period}"),
         ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
         ParameterDisplayDescription(key="skus", value=f"SKUs: {num_skus}"),
         ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
