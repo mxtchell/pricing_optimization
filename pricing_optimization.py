@@ -77,27 +77,7 @@ def pricing_optimization(parameters: SkillInput):
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
     price_change_pct = parameters.arguments.price_change_pct or 10
 
-    # Clean and validate date parameters
-    def clean_date(date_val):
-        if not date_val:
-            return None
-        # Convert to string and strip whitespace/trailing commas
-        date_str = str(date_val).strip().rstrip(',')
-        # Handle various formats
-        if len(date_str) == 7 and date_str[4] == '-':  # YYYY-MM format
-            date_str = f"{date_str}-01"  # Add day
-        elif len(date_str) == 4:  # YYYY format
-            date_str = f"{date_str}-01-01"  # Add month and day
-        # Validate it looks like a date
-        if len(date_str) >= 10 and date_str[4] == '-' and date_str[7] == '-':
-            return date_str[:10]  # Return YYYY-MM-DD portion
-        return None
-
-    start_date = clean_date(start_date)
-    end_date = clean_date(end_date)
-
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
-    print(f"DEBUG: Cleaned dates - start: {start_date}, end: {end_date}")
 
     # Validate brand filter is present for optimization analysis
     if analysis_type == "optimization":
@@ -309,12 +289,6 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         FROM read_csv('pasta_2025.csv')
         WHERE 1=1
         """
-
-        # Add date filters
-        if start_date:
-            sql_query += f" AND month_new >= '{start_date}'"
-        if end_date:
-            sql_query += f" AND month_new <= '{end_date}'"
 
         # Add non-brand filters
         if filters:
@@ -903,9 +877,10 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     brief_summary = f"{brand_display} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
 
-    # Create pills (prior/current period pills added later after mid_point_date is calculated)
+    # Create pills
     param_pills = [
         ParameterDisplayDescription(key="brand", value=f"Brand: {brand_display}"),
+        ParameterDisplayDescription(key="time_period", value=f"Period: {time_period}"),
         ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
         ParameterDisplayDescription(key="skus", value=f"SKUs: {num_skus}"),
         ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
@@ -933,51 +908,40 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     # Calculate competitor metrics for threat detection
     competitor_metrics = []
 
-    # Determine period split based on available data
-    all_months = sorted(full_df['month_new'].unique())
-    mid_point_date = all_months[len(all_months) // 2] if len(all_months) > 1 else None
-
-    # Calculate total market for each period (for market share calculation)
-    if mid_point_date:
-        prior_period_total_units = full_df[full_df['month_new'] < mid_point_date]['total_units'].sum()
-        current_period_total_units = full_df[full_df['month_new'] >= mid_point_date]['total_units'].sum()
-    else:
-        prior_period_total_units = 0
-        current_period_total_units = full_df['total_units'].sum()
-
     for brand in full_df['brand'].unique():
         if brand.upper() == brand_filter.upper():
             continue  # Skip target brand
 
         brand_data = full_df[full_df['brand'] == brand]
 
-        # Split by mid-point date for prior vs current period
-        if mid_point_date:
-            prior_period_data = brand_data[brand_data['month_new'] < mid_point_date]
-            current_period_data = brand_data[brand_data['month_new'] >= mid_point_date]
-        else:
-            prior_period_data = pd.DataFrame()
-            current_period_data = brand_data
-
-        # Prior period metrics
-        prior_sales = prior_period_data['total_sales'].sum() if len(prior_period_data) > 0 else 0
-        prior_units = prior_period_data['total_units'].sum() if len(prior_period_data) > 0 else 0
-        prior_volume = prior_period_data['total_volume'].sum() if len(prior_period_data) > 0 else 0
-        prior_price = prior_sales / prior_units if prior_units > 0 else 0
-        prior_market_share = (prior_units / prior_period_total_units * 100) if prior_period_total_units > 0 else 0
-
-        # Current period metrics
-        current_sales = current_period_data['total_sales'].sum() if len(current_period_data) > 0 else 0
-        current_units = current_period_data['total_units'].sum() if len(current_period_data) > 0 else 0
-        current_volume = current_period_data['total_volume'].sum() if len(current_period_data) > 0 else 0
+        # Calculate current period metrics
+        current_sales = brand_data['total_sales'].sum()
+        current_units = brand_data['total_units'].sum()
+        current_volume = brand_data['total_volume'].sum()
         current_price = current_sales / current_units if current_units > 0 else 0
-        current_market_share = (current_units / current_period_total_units * 100) if current_period_total_units > 0 else 0
 
-        # Calculate growth from prior period
-        volume_growth = ((current_units - prior_units) / prior_units * 100) if prior_units > 0 else 0
-        price_change = ((current_price - prior_price) / prior_price * 100) if prior_price > 0 else 0
-        sales_growth = ((current_sales - prior_sales) / prior_sales * 100) if prior_sales > 0 else 0
-        share_change = current_market_share - prior_market_share
+        # Calculate growth (compare first half vs second half of time period)
+        brand_data_sorted = brand_data.sort_values('month_new')
+        mid_point = len(brand_data_sorted) // 2
+
+        if mid_point > 0:
+            early_period = brand_data_sorted.iloc[:mid_point]
+            late_period = brand_data_sorted.iloc[mid_point:]
+
+            early_volume = early_period['total_units'].sum()
+            late_volume = late_period['total_units'].sum()
+            early_price = early_period['total_sales'].sum() / early_period['total_units'].sum() if early_period['total_units'].sum() > 0 else 0
+            late_price = late_period['total_sales'].sum() / late_period['total_units'].sum() if late_period['total_units'].sum() > 0 else 0
+
+            volume_growth = ((late_volume - early_volume) / early_volume * 100) if early_volume > 0 else 0
+            price_change = ((late_price - early_price) / early_price * 100) if early_price > 0 else 0
+        else:
+            volume_growth = 0
+            price_change = 0
+
+        # Market share
+        total_market_units = full_df['total_units'].sum()
+        market_share = (current_units / total_market_units * 100) if total_market_units > 0 else 0
 
         # Threat score: high volume growth + low/negative price change = threat
         # Scale: volume growth weight 0.7, inverse price change weight 0.3
@@ -985,19 +949,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
         competitor_metrics.append({
             'brand': brand,
-            'prior_sales': prior_sales,
-            'prior_market_share': prior_market_share,
-            'prior_volume': prior_volume,
-            'prior_price': prior_price,
-            'current_sales': current_sales,
-            'current_market_share': current_market_share,
-            'current_volume': current_volume,
-            'current_price': current_price,
-            'market_share': current_market_share,  # Keep for backward compatibility
+            'market_share': market_share,
             'volume_growth': volume_growth,
             'price_change': price_change,
-            'sales_growth': sales_growth,
-            'share_change': share_change,
+            'current_sales': current_sales,
+            'current_price': current_price,
             'threat_score': threat_score
         })
 
@@ -1163,51 +1119,25 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
                     "type": "FlexContainer",
                     "children": "",
                     "direction": "column",
-                    "extraStyles": "display: grid; grid-template-columns: 1.4fr repeat(12, 1fr) 0.8fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; font-size: 12px;"
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
                 },
-                # Headers - 3 columns per metric: Prior | Current | Growth
-                {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
-                # Sales (Prior | Current | Growth)
-                {"name": "TH_PriorSales", "type": "Paragraph", "children": "", "text": "Prior $", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrSales", "type": "Paragraph", "children": "", "text": "Curr $", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_SalesGrowth", "type": "Paragraph", "children": "", "text": "$ Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Share (Prior | Current | Growth)
-                {"name": "TH_PriorShare", "type": "Paragraph", "children": "", "text": "Prior Shr", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrShare", "type": "Paragraph", "children": "", "text": "Curr Shr", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_ShareGrowth", "type": "Paragraph", "children": "", "text": "Shr Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Volume (Prior | Current | Growth)
-                {"name": "TH_PriorVol", "type": "Paragraph", "children": "", "text": "Prior Vol", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrVol", "type": "Paragraph", "children": "", "text": "Curr Vol", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Vol Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Price (Prior | Current | Growth)
-                {"name": "TH_PriorPrice", "type": "Paragraph", "children": "", "text": "Prior Prc", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrPrice", "type": "Paragraph", "children": "", "text": "Curr Prc", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Prc Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Threat
-                {"name": "TH_Threat", "type": "Paragraph", "children": "", "text": "Threat", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}}
+                # Headers
+                {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "TH_Sales", "type": "Paragraph", "children": "", "text": "Sales", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_Share", "type": "Paragraph", "children": "", "text": "Market Share", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Volume Growth", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Price Change", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_Threat", "type": "Paragraph", "children": "", "text": "Threat Level", "parentId": "ThreatTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}}
             ] + [
                 item
                 for idx, row in top_threats.iterrows()
                 for item in [
-                    {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "8px 6px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
-                    # Sales (Prior | Current | Growth)
-                    {"name": f"TR{idx}_PriorSales", "type": "Paragraph", "children": "", "text": f"${row['prior_sales']/1e6:.1f}M" if row['prior_sales'] >= 1e6 else f"${row['prior_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrSales", "type": "Paragraph", "children": "", "text": f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"TR{idx}_SalesGrowth", "type": "Paragraph", "children": "", "text": f"{row['sales_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['sales_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
-                    # Share (Prior | Current | Growth)
-                    {"name": f"TR{idx}_PriorShare", "type": "Paragraph", "children": "", "text": f"{row['prior_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrShare", "type": "Paragraph", "children": "", "text": f"{row['current_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"TR{idx}_ShareGrowth", "type": "Paragraph", "children": "", "text": f"{row['share_change']:+.1f}pp", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['share_change'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
-                    # Volume (Prior | Current | Growth)
-                    {"name": f"TR{idx}_PriorVol", "type": "Paragraph", "children": "", "text": f"{row['prior_volume']/1e6:.1f}M" if row['prior_volume'] >= 1e6 else f"{row['prior_volume']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrVol", "type": "Paragraph", "children": "", "text": f"{row['current_volume']/1e6:.1f}M" if row['current_volume'] >= 1e6 else f"{row['current_volume']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"TR{idx}_VolGrowth", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
-                    # Price (Prior | Current | Growth)
-                    {"name": f"TR{idx}_PriorPrice", "type": "Paragraph", "children": "", "text": f"${row['prior_price']:.2f}", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrPrice", "type": "Paragraph", "children": "", "text": f"${row['current_price']:.2f}", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"TR{idx}_PriceChg", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#ef4444" if row['price_change'] < 0 else "#22c55e", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
-                    # Threat
-                    {"name": f"TR{idx}_Threat", "type": "Paragraph", "children": "", "text": "🔴" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡" if row['volume_growth'] > 0 else "🟢"), "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "center", "fontWeight": "bold", "borderBottom": "1px solid #eee"}}
+                    {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "12px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Sales", "type": "Paragraph", "children": "", "text": f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Share", "type": "Paragraph", "children": "", "text": f"{row['market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Vol", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Price", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_Threat", "type": "Paragraph", "children": "", "text": "🔴 HIGH" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡 WATCH" if row['volume_growth'] > 0 else "🟢 LOW"), "parentId": "ThreatTable", "style": {"padding": "12px", "textAlign": "center", "fontWeight": "bold", "borderBottom": "1px solid #eee"}}
                 ]
             ]
         },
@@ -1235,34 +1165,8 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     combined_tab2_html = wire_layout(tab2_layout, {})
 
     # ===== TAB 3: MARKET SHARE TREND =====
-    # Query full date range for market share trend (no date filters)
-    try:
-        trend_sql = f"""
-        SELECT brand, month_new, SUM(units) as total_units
-        FROM read_csv('pasta_2025.csv')
-        WHERE 1=1
-        """
-        # Add non-brand, non-date filters only
-        if filters:
-            for filter_item in filters:
-                if isinstance(filter_item, dict) and filter_item.get('dim') != 'brand':
-                    dim = filter_item['dim']
-                    values = filter_item.get('val')
-                    if isinstance(values, list):
-                        values_str = "', '".join(str(v).upper() for v in values)
-                        trend_sql += f" AND UPPER({dim}) IN ('{values_str}')"
-        trend_sql += " GROUP BY brand, month_new"
-
-        trend_result = client.data.execute_sql_query(DATABASE_ID, trend_sql, row_limit=10000)
-        if trend_result.success and hasattr(trend_result, 'df'):
-            trend_df = trend_result.df
-        else:
-            trend_df = full_df  # Fallback to filtered data
-    except:
-        trend_df = full_df  # Fallback to filtered data
-
     # Calculate monthly market share for top brands
-    monthly_share = trend_df.groupby(['month_new', 'brand']).agg({
+    monthly_share = full_df.groupby(['month_new', 'brand']).agg({
         'total_units': 'sum'
     }).reset_index()
 
@@ -1354,33 +1258,6 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         },
         "inputVariables": []
     }, {})
-
-    # Add prior/current period pills for Tab 2
-    if mid_point_date and len(all_months) >= 2:
-        first_month = str(all_months[0])[:10]
-        mid_idx = len(all_months) // 2
-        # Prior period ends at the month before midpoint
-        last_prior_month = str(all_months[mid_idx - 1])[:10] if mid_idx > 0 else first_month
-        first_curr_month = str(mid_point_date)[:10]
-        last_month = str(all_months[-1])[:10]
-
-        # Format nicely - if same month, just show one date
-        if first_month == last_prior_month:
-            prior_text = f"Prior: {first_month[:7]}"  # Just YYYY-MM
-        else:
-            prior_text = f"Prior: {first_month[:7]} to {last_prior_month[:7]}"
-
-        if first_curr_month == last_month:
-            curr_text = f"Current: {first_curr_month[:7]}"
-        else:
-            curr_text = f"Current: {first_curr_month[:7]} to {last_month[:7]}"
-
-        param_pills.append(
-            ParameterDisplayDescription(key="prior_period", value=prior_text)
-        )
-        param_pills.append(
-            ParameterDisplayDescription(key="current_period", value=curr_text)
-        )
 
     return SkillOutput(
         final_prompt=brief_summary,
