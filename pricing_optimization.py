@@ -877,10 +877,9 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     brief_summary = f"{brand_display} positioned at {weighted_premium:+.1f}% vs competition with {volume_share:.1f}% volume share."
 
-    # Create pills
+    # Create pills (period pills added later after YoY calculation)
     param_pills = [
         ParameterDisplayDescription(key="brand", value=f"Brand: {brand_display}"),
-        ParameterDisplayDescription(key="time_period", value=f"Period: {time_period}"),
         ParameterDisplayDescription(key="dimension", value=f"Dimension: {dimension.replace('_', ' ').title()}"),
         ParameterDisplayDescription(key="skus", value=f"SKUs: {num_skus}"),
         ParameterDisplayDescription(key="premium", value=f"Avg Premium: {weighted_premium:+.1f}%"),
@@ -905,35 +904,53 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
                     )
 
     # ===== TAB 2: COMPETITOR THREAT ANALYSIS =====
-    # Calculate competitor metrics for threat detection
+    # Calculate competitor metrics using YoY comparison
     competitor_metrics = []
 
-    # Determine period split based on available data
-    all_months = sorted(full_df['month_new'].unique())
-    mid_point_idx = len(all_months) // 2
-    mid_point_date = all_months[mid_point_idx] if len(all_months) > 1 else None
+    # Determine current and prior periods based on date filters (YoY)
+    from dateutil.relativedelta import relativedelta
+
+    # Parse the date filters to determine current period
+    if start_date and end_date:
+        curr_start = pd.to_datetime(start_date)
+        curr_end = pd.to_datetime(end_date)
+        # Prior period = same dates -1 year
+        prior_start = curr_start - relativedelta(years=1)
+        prior_end = curr_end - relativedelta(years=1)
+    elif start_date:
+        curr_start = pd.to_datetime(start_date)
+        curr_end = full_df['month_new'].max()
+        prior_start = curr_start - relativedelta(years=1)
+        prior_end = curr_end - relativedelta(years=1)
+    else:
+        # No date filter - use most recent year vs prior year
+        all_months = sorted(full_df['month_new'].unique())
+        curr_end = all_months[-1]
+        curr_start = curr_end - relativedelta(years=1) + relativedelta(days=1)
+        prior_end = curr_start - relativedelta(days=1)
+        prior_start = prior_end - relativedelta(years=1) + relativedelta(days=1)
+
+    # Store for pills display
+    prior_period_start = prior_start
+    prior_period_end = prior_end
+    current_period_start = curr_start
+    current_period_end = curr_end
+
+    # Filter data for each period
+    current_df = full_df[(full_df['month_new'] >= curr_start) & (full_df['month_new'] <= curr_end)]
+    prior_df = full_df[(full_df['month_new'] >= prior_start) & (full_df['month_new'] <= prior_end)]
 
     # Calculate total market for each period
-    if mid_point_date:
-        prior_market_units = full_df[full_df['month_new'] < mid_point_date]['total_units'].sum()
-        current_market_units = full_df[full_df['month_new'] >= mid_point_date]['total_units'].sum()
-    else:
-        prior_market_units = 0
-        current_market_units = full_df['total_units'].sum()
+    prior_market_units = prior_df['total_units'].sum() if len(prior_df) > 0 else 0
+    current_market_units = current_df['total_units'].sum() if len(current_df) > 0 else 0
 
     for brand in full_df['brand'].unique():
         if brand.upper() == brand_filter.upper():
             continue  # Skip target brand
 
-        brand_data = full_df[full_df['brand'] == brand]
-
-        # Split by period
-        if mid_point_date:
-            prior_data = brand_data[brand_data['month_new'] < mid_point_date]
-            current_data = brand_data[brand_data['month_new'] >= mid_point_date]
-        else:
-            prior_data = pd.DataFrame()
-            current_data = brand_data
+        # Get brand data for each period
+        prior_data = prior_df[prior_df['brand'] == brand]
+        current_data = current_df[current_df['brand'] == brand]
 
         # Prior period metrics
         prior_sales = prior_data['total_sales'].sum() if len(prior_data) > 0 else 0
@@ -949,7 +966,7 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         current_price = current_sales / current_units if current_units > 0 else 0
         current_share = (current_units / current_market_units * 100) if current_market_units > 0 else 0
 
-        # Growth metrics
+        # Growth metrics (YoY)
         volume_growth = ((current_units - prior_units) / prior_units * 100) if prior_units > 0 else 0
         price_change = ((current_price - prior_price) / prior_price * 100) if prior_price > 0 else 0
         sales_growth = ((current_sales - prior_sales) / prior_sales * 100) if prior_sales > 0 else 0
@@ -1294,25 +1311,24 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         "inputVariables": []
     }, {})
 
-    # Add prior/current period pills for Tab 2
-    if mid_point_date and len(all_months) >= 2:
-        first_month = str(all_months[0])[:7]  # YYYY-MM
-        last_prior = str(all_months[mid_point_idx - 1])[:7] if mid_point_idx > 0 else first_month
-        first_curr = str(mid_point_date)[:7]
-        last_month = str(all_months[-1])[:7]
+    # Add YoY period pills
+    prior_start_str = str(prior_period_start)[:7]  # YYYY-MM
+    prior_end_str = str(prior_period_end)[:7]
+    curr_start_str = str(current_period_start)[:7]
+    curr_end_str = str(current_period_end)[:7]
 
-        if first_month == last_prior:
-            prior_text = f"Prior: {first_month}"
-        else:
-            prior_text = f"Prior: {first_month} to {last_prior}"
+    if prior_start_str == prior_end_str:
+        prior_text = f"Prior: {prior_start_str}"
+    else:
+        prior_text = f"Prior: {prior_start_str} to {prior_end_str}"
 
-        if first_curr == last_month:
-            curr_text = f"Current: {first_curr}"
-        else:
-            curr_text = f"Current: {first_curr} to {last_month}"
+    if curr_start_str == curr_end_str:
+        curr_text = f"Current: {curr_start_str}"
+    else:
+        curr_text = f"Current: {curr_start_str} to {curr_end_str}"
 
-        param_pills.append(ParameterDisplayDescription(key="prior_period", value=prior_text))
-        param_pills.append(ParameterDisplayDescription(key="current_period", value=curr_text))
+    param_pills.append(ParameterDisplayDescription(key="prior_period", value=prior_text))
+    param_pills.append(ParameterDisplayDescription(key="current_period", value=curr_text))
 
     return SkillOutput(
         final_prompt=brief_summary,
