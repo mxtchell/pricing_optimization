@@ -82,17 +82,25 @@ def pricing_optimization(parameters: SkillInput):
         if not date_val:
             return None
         # Convert to string and strip whitespace/trailing commas
-        date_str = str(date_val).strip().rstrip(',')
-        # Handle various formats
-        if len(date_str) == 7 and date_str[4] == '-':  # YYYY-MM format
-            date_str = f"{date_str}-01"  # Add day
-        elif len(date_str) == 4:  # YYYY format
-            date_str = f"{date_str}-01-01"  # Add month and day
-        # Validate it looks like a date
-        if len(date_str) >= 10 and date_str[4] == '-' and date_str[7] == '-':
-            return date_str[:10]  # Return YYYY-MM-DD portion
+        date_str = str(date_val).strip().rstrip(',').rstrip('.')
+        # Only keep valid date characters (digits and dashes)
+        import re
+        # Extract YYYY-MM-DD pattern if present
+        match = re.search(r'(\d{4}-\d{2}-\d{2})', date_str)
+        if match:
+            return match.group(1)
+        # Try YYYY-MM pattern
+        match = re.search(r'(\d{4}-\d{2})', date_str)
+        if match:
+            return f"{match.group(1)}-01"
+        # Try YYYY pattern
+        match = re.search(r'(\d{4})', date_str)
+        if match:
+            return f"{match.group(1)}-01-01"
         return None
 
+    print(f"DEBUG: Raw dates - start: {start_date}, end: {end_date}")
+    print(f"DEBUG: Raw filters: {filters}")
     start_date = clean_date(start_date)
     end_date = clean_date(end_date)
 
