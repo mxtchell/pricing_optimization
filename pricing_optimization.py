@@ -1381,9 +1381,11 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     # Filter for peer group (same tier as target)
     peer_brands = [b for b in all_brands_index if b['tier'] == target_tier][:10]
 
-    # Build line chart series
+    # Build line chart series - filter to 2023-2024 only
     index_series = []
-    months_list = sorted(monthly_prices['month_new'].unique())
+    all_months = sorted(monthly_prices['month_new'].unique())
+    # Filter to 2023 and 2024 only
+    months_list = [m for m in all_months if pd.to_datetime(m).year >= 2023]
     month_labels = [str(m)[:7] for m in months_list]
 
     for brand in top_brands_for_index:
