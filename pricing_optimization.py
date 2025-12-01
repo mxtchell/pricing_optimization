@@ -1334,7 +1334,18 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     param_pills.append(ParameterDisplayDescription(key="current_period", value=curr_text))
 
     # ===== TAB 4: PRICE INDEX =====
-    # Calculate price index (category average = 100) over time
+    # CPG Price Index Analysis with Tier Classification and Mix vs Price Diagnosis
+
+    # Helper function to classify tier
+    def get_tier(index_val):
+        if index_val < 80:
+            return ("Value", "#9ca3af")  # gray
+        elif index_val < 120:
+            return ("Core", "#3b82f6")  # blue
+        elif index_val < 200:
+            return ("Premium", "#22c55e")  # green
+        else:
+            return ("Super Premium", "#a855f7")  # purple
 
     # Get monthly price data for all brands
     monthly_prices = full_df.groupby(['month_new', 'brand']).agg({
@@ -1354,10 +1365,51 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     monthly_prices = monthly_prices.merge(category_avg[['month_new', 'category_avg_price']], on='month_new')
     monthly_prices['price_index'] = (monthly_prices['avg_price'] / monthly_prices['category_avg_price']) * 100
 
-    # Get top brands by volume for the chart
-    top_brands_for_index = full_df.groupby('brand')['total_units'].sum().nlargest(6).index.tolist()
+    # Calculate current index for target brand to find peer tier
+    target_current = monthly_prices[(monthly_prices['brand'].str.upper() == brand_filter.upper()) &
+                                     (monthly_prices['month_new'] >= curr_start) &
+                                     (monthly_prices['month_new'] <= curr_end)]
+    target_curr_idx = target_current['price_index'].mean() if len(target_current) > 0 else 100
+    target_tier, target_tier_color = get_tier(target_curr_idx)
+
+    # Get all brands with their current index and tier
+    all_brands_index = []
+    for brand in full_df['brand'].unique():
+        brand_current = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
+                                        (monthly_prices['month_new'] >= curr_start) &
+                                        (monthly_prices['month_new'] <= curr_end)]
+        brand_prior = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
+                                      (monthly_prices['month_new'] >= prior_start) &
+                                      (monthly_prices['month_new'] <= prior_end)]
+        curr_idx = brand_current['price_index'].mean() if len(brand_current) > 0 else 0
+        prior_idx = brand_prior['price_index'].mean() if len(brand_prior) > 0 else 0
+        idx_change = curr_idx - prior_idx
+        tier, tier_color = get_tier(curr_idx)
+
+        # Get volume for sorting
+        brand_vol = full_df[full_df['brand'].str.upper() == brand.upper()]['total_units'].sum()
+
+        all_brands_index.append({
+            'brand': brand,
+            'prior_index': prior_idx,
+            'current_index': curr_idx,
+            'index_change': idx_change,
+            'tier': tier,
+            'tier_color': tier_color,
+            'volume': brand_vol,
+            'flagged': abs(idx_change) > 5  # Flag if change > 5 points
+        })
+
+    # Sort by volume descending
+    all_brands_index = sorted(all_brands_index, key=lambda x: x['volume'], reverse=True)
+
+    # Get top brands for chart (including target)
+    top_brands_for_index = [b['brand'] for b in all_brands_index[:6]]
     if brand_filter.upper() not in [b.upper() for b in top_brands_for_index]:
         top_brands_for_index = [brand_filter] + top_brands_for_index[:5]
+
+    # Filter for peer group (same tier as target)
+    peer_brands = [b for b in all_brands_index if b['tier'] == target_tier][:10]
 
     # Build line chart series
     index_series = []
@@ -1366,7 +1418,6 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
 
     for brand in top_brands_for_index:
         brand_data = monthly_prices[monthly_prices['brand'].str.upper() == brand.upper()].sort_values('month_new')
-        # Fill missing months with None
         brand_index_values = []
         for m in months_list:
             val = brand_data[brand_data['month_new'] == m]['price_index'].values
@@ -1381,6 +1432,7 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
             "lineWidth": line_width
         })
 
+    # Add tier band plotBands
     price_index_chart = {
         "chart": {"type": "line", "height": 400},
         "title": {"text": "Price Index Trend (Category Avg = 100)"},
@@ -1391,55 +1443,129 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         },
         "yAxis": {
             "title": {"text": "Price Index"},
+            "plotBands": [
+                {"from": 0, "to": 80, "color": "rgba(156, 163, 175, 0.1)", "label": {"text": "Value", "style": {"color": "#9ca3af", "fontSize": "10px"}}},
+                {"from": 80, "to": 120, "color": "rgba(59, 130, 246, 0.1)", "label": {"text": "Core", "style": {"color": "#3b82f6", "fontSize": "10px"}}},
+                {"from": 120, "to": 200, "color": "rgba(34, 197, 94, 0.1)", "label": {"text": "Premium", "style": {"color": "#22c55e", "fontSize": "10px"}}},
+                {"from": 200, "to": 400, "color": "rgba(168, 85, 247, 0.1)", "label": {"text": "Super Premium", "style": {"color": "#a855f7", "fontSize": "10px"}}}
+            ],
             "plotLines": [{"value": 100, "color": "#666", "dashStyle": "dash", "width": 2, "label": {"text": "Category Avg", "align": "right"}}]
         },
-        "tooltip": {
-            "shared": True,
-            "valueSuffix": ""
-        },
+        "tooltip": {"shared": True, "valueSuffix": ""},
         "series": index_series,
         "legend": {"align": "center", "verticalAlign": "bottom"},
         "credits": {"enabled": False}
     }
 
-    # Build price index table by brand (current vs prior period)
-    index_table_data = []
-    for brand in top_brands_for_index:
-        brand_current = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
-                                        (monthly_prices['month_new'] >= curr_start) &
-                                        (monthly_prices['month_new'] <= curr_end)]
-        brand_prior = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
-                                      (monthly_prices['month_new'] >= prior_start) &
-                                      (monthly_prices['month_new'] <= prior_end)]
+    # Build price index table by brand with tier and flagging
+    index_table_data = [b for b in all_brands_index if b['brand'].upper() in [t.upper() for t in top_brands_for_index]]
 
-        curr_idx = brand_current['price_index'].mean() if len(brand_current) > 0 else 0
-        prior_idx = brand_prior['price_index'].mean() if len(brand_prior) > 0 else 0
+    # ===== BASE SIZE MIX ANALYSIS =====
+    # Compare prior vs current period index by base_size to detect mix issues
+
+    # Current period base_size index
+    current_brand_df = full_df[(full_df['brand'].str.upper() == brand_filter.upper()) &
+                                (full_df['month_new'] >= curr_start) &
+                                (full_df['month_new'] <= curr_end)]
+    prior_brand_df = full_df[(full_df['brand'].str.upper() == brand_filter.upper()) &
+                              (full_df['month_new'] >= prior_start) &
+                              (full_df['month_new'] <= prior_end)]
+
+    # Current period category avg by base_size
+    current_cat_df = full_df[(full_df['month_new'] >= curr_start) & (full_df['month_new'] <= curr_end)]
+    prior_cat_df = full_df[(full_df['month_new'] >= prior_start) & (full_df['month_new'] <= prior_end)]
+
+    base_size_analysis = []
+
+    # Get all base_sizes the brand sells
+    brand_base_sizes = full_df[full_df['brand'].str.upper() == brand_filter.upper()]['base_size'].unique()
+
+    for bs in brand_base_sizes:
+        # Current period
+        curr_brand_bs = current_brand_df[current_brand_df['base_size'] == bs]
+        curr_cat_bs = current_cat_df[current_cat_df['base_size'] == bs]
+
+        curr_brand_price = curr_brand_bs['total_sales'].sum() / curr_brand_bs['total_units'].sum() if curr_brand_bs['total_units'].sum() > 0 else 0
+        curr_cat_price = curr_cat_bs['total_sales'].sum() / curr_cat_bs['total_units'].sum() if curr_cat_bs['total_units'].sum() > 0 else 0
+        curr_idx = (curr_brand_price / curr_cat_price * 100) if curr_cat_price > 0 else 0
+        curr_vol = curr_brand_bs['total_units'].sum()
+
+        # Prior period
+        prior_brand_bs = prior_brand_df[prior_brand_df['base_size'] == bs]
+        prior_cat_bs = prior_cat_df[prior_cat_df['base_size'] == bs]
+
+        prior_brand_price = prior_brand_bs['total_sales'].sum() / prior_brand_bs['total_units'].sum() if prior_brand_bs['total_units'].sum() > 0 else 0
+        prior_cat_price = prior_cat_bs['total_sales'].sum() / prior_cat_bs['total_units'].sum() if prior_cat_bs['total_units'].sum() > 0 else 0
+        prior_idx = (prior_brand_price / prior_cat_price * 100) if prior_cat_price > 0 else 0
+        prior_vol = prior_brand_bs['total_units'].sum()
+
         idx_change = curr_idx - prior_idx
+        vol_change = ((curr_vol / prior_vol - 1) * 100) if prior_vol > 0 else 0
 
-        index_table_data.append({
-            'brand': brand,
-            'prior_index': prior_idx,
-            'current_index': curr_idx,
-            'index_change': idx_change
-        })
+        # Calculate mix share
+        total_curr_vol = current_brand_df['total_units'].sum()
+        total_prior_vol = prior_brand_df['total_units'].sum()
+        curr_mix = (curr_vol / total_curr_vol * 100) if total_curr_vol > 0 else 0
+        prior_mix = (prior_vol / total_prior_vol * 100) if total_prior_vol > 0 else 0
+        mix_change = curr_mix - prior_mix
 
-    # Build price index by base_size for target brand
-    base_size_index = full_df[full_df['brand'].str.upper() == brand_filter.upper()].groupby('base_size').agg({
-        'total_sales': 'sum',
-        'total_units': 'sum'
-    }).reset_index()
-    base_size_index['avg_price'] = base_size_index['total_sales'] / base_size_index['total_units']
+        if curr_idx > 0 or prior_idx > 0:  # Only include if has data
+            base_size_analysis.append({
+                'base_size': bs,
+                'prior_index': prior_idx,
+                'current_index': curr_idx,
+                'index_change': idx_change,
+                'prior_mix': prior_mix,
+                'current_mix': curr_mix,
+                'mix_change': mix_change,
+                'flagged': abs(idx_change) > 5
+            })
 
-    # Category avg by base_size
-    category_base_avg = full_df.groupby('base_size').agg({
-        'total_sales': 'sum',
-        'total_units': 'sum'
-    }).reset_index()
-    category_base_avg['category_avg_price'] = category_base_avg['total_sales'] / category_base_avg['total_units']
+    # Sort by current volume mix descending
+    base_size_analysis = sorted(base_size_analysis, key=lambda x: x['current_mix'], reverse=True)
 
-    base_size_index = base_size_index.merge(category_base_avg[['base_size', 'category_avg_price']], on='base_size')
-    base_size_index['price_index'] = (base_size_index['avg_price'] / base_size_index['category_avg_price']) * 100
-    base_size_index = base_size_index.sort_values('price_index', ascending=False)
+    # ===== DIAGNOSTIC INSIGHT =====
+    # Determine if index change is due to mix or pricing
+    target_data = next((b for b in all_brands_index if b['brand'].upper() == brand_filter.upper()), None)
+    target_idx_change = target_data['index_change'] if target_data else 0
+
+    diagnostic_text = ""
+    diagnostic_color = "#6b7280"  # gray
+
+    if abs(target_idx_change) > 5:
+        # Check if base_sizes maintained their index (mix issue) or changed (pricing issue)
+        core_sizes = [bs for bs in base_size_analysis if bs['current_mix'] > 10]  # Top sizes by mix
+        core_idx_changes = [bs['index_change'] for bs in core_sizes]
+        avg_core_change = sum(core_idx_changes) / len(core_idx_changes) if core_idx_changes else 0
+
+        # Check mix shifts
+        mix_shifts = [bs for bs in base_size_analysis if abs(bs['mix_change']) > 5]
+
+        if abs(avg_core_change) < 3 and mix_shifts:
+            # Core sizes stable but mix shifted = MIX ISSUE
+            diagnostic_text = f"Index {'dropped' if target_idx_change < 0 else 'increased'} by {abs(target_idx_change):.1f} pts. Core pack sizes maintained index - this appears to be a MIX shift (selling {'more lower-priced' if target_idx_change < 0 else 'more premium'} packs)."
+            diagnostic_color = "#f59e0b"  # amber
+        else:
+            # Core sizes also changed = PRICING ISSUE
+            # Check peer group behavior
+            peer_changes = [p['index_change'] for p in peer_brands if p['brand'].upper() != brand_filter.upper()]
+            avg_peer_change = sum(peer_changes) / len(peer_changes) if peer_changes else 0
+
+            if abs(avg_peer_change) > 3 and (avg_peer_change * target_idx_change > 0):
+                # Peers moved in same direction = market-wide
+                diagnostic_text = f"Index {'dropped' if target_idx_change < 0 else 'increased'} by {abs(target_idx_change):.1f} pts. Similar movement seen in peer group (avg {avg_peer_change:+.1f} pts) - likely market-wide pricing adjustment."
+                diagnostic_color = "#3b82f6"  # blue
+            else:
+                # We moved differently than peers = competitive issue
+                if target_idx_change < 0:
+                    diagnostic_text = f"Index dropped by {abs(target_idx_change):.1f} pts while {target_tier} peers {'held steady' if abs(avg_peer_change) < 3 else f'moved {avg_peer_change:+.1f} pts'}. Investigate: Did we reduce price? Did competitors raise prices?"
+                    diagnostic_color = "#ef4444"  # red
+                else:
+                    diagnostic_text = f"Index increased by {target_idx_change:.1f} pts while {target_tier} peers {'held steady' if abs(avg_peer_change) < 3 else f'moved {avg_peer_change:+.1f} pts'}. Strong pricing position vs competition."
+                    diagnostic_color = "#22c55e"  # green
+    else:
+        diagnostic_text = f"Index stable (changed {target_idx_change:+.1f} pts). Within normal range of +/-5 pts."
+        diagnostic_color = "#22c55e"  # green
 
     # Build Tab 4 layout
     price_index_layout = {
@@ -1447,6 +1573,29 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
             "type": "Document",
             "style": {"padding": "20px"},
             "children": [
+                # Target brand tier badge
+                {
+                    "name": "TierBadge",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "row",
+                    "style": {"marginBottom": "20px", "gap": "15px", "alignItems": "center"}
+                },
+                {"name": "TierLabel", "type": "Paragraph", "children": "", "text": f"{brand_filter} Price Tier:", "parentId": "TierBadge", "style": {"fontWeight": "bold", "fontSize": "16px"}},
+                {"name": "TierValue", "type": "Paragraph", "children": "", "text": f"{target_tier} (Index: {target_curr_idx:.0f})", "parentId": "TierBadge", "style": {"backgroundColor": target_tier_color, "color": "white", "padding": "6px 16px", "borderRadius": "20px", "fontWeight": "bold", "fontSize": "14px"}},
+
+                # Diagnostic insight box
+                {
+                    "name": "DiagnosticBox",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "style": {"backgroundColor": "#f8fafc", "border": f"2px solid {diagnostic_color}", "borderRadius": "8px", "padding": "16px", "marginBottom": "20px"}
+                },
+                {"name": "DiagHeader", "type": "Paragraph", "children": "", "text": "Index Diagnostic", "parentId": "DiagnosticBox", "style": {"fontWeight": "bold", "fontSize": "14px", "color": diagnostic_color, "marginBottom": "8px"}},
+                {"name": "DiagText", "type": "Paragraph", "children": "", "text": diagnostic_text, "parentId": "DiagnosticBox", "style": {"fontSize": "14px", "lineHeight": "1.5"}},
+
+                # Chart
                 {
                     "name": "IndexChart",
                     "type": "HighchartsChart",
@@ -1454,60 +1603,82 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
                     "minHeight": "400px",
                     "options": price_index_chart
                 },
+
+                # Peer Group Comparison Header
                 {
-                    "name": "IndexTableHeader",
+                    "name": "PeerHeader",
                     "type": "Header",
                     "children": "",
-                    "text": "Price Index by Brand",
+                    "text": f"{target_tier} Tier Peer Comparison",
                     "style": {"fontSize": "18px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
                 },
+
+                # Peer Group Table
                 {
-                    "name": "IndexTable",
+                    "name": "PeerTable",
                     "type": "FlexContainer",
                     "children": "",
                     "direction": "column",
-                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; font-size: 13px;"
                 },
-                {"name": "ITH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
-                {"name": "ITH_Prior", "type": "Paragraph", "children": "", "text": "Prior Index", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "ITH_Current", "type": "Paragraph", "children": "", "text": "Current Index", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "ITH_Change", "type": "Paragraph", "children": "", "text": "Change", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
+                {"name": "PTH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "PeerTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "PTH_Tier", "type": "Paragraph", "children": "", "text": "Tier", "parentId": "PeerTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}},
+                {"name": "PTH_Prior", "type": "Paragraph", "children": "", "text": "Prior", "parentId": "PeerTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "PTH_Current", "type": "Paragraph", "children": "", "text": "Current", "parentId": "PeerTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "PTH_Change", "type": "Paragraph", "children": "", "text": "Chg", "parentId": "PeerTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
             ] + [
                 item
-                for i, row in enumerate(index_table_data)
+                for i, row in enumerate(peer_brands[:8])
                 for item in [
-                    {"name": f"IT{i}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "IndexTable", "style": {"padding": "12px", "fontWeight": "bold" if row['brand'].upper() == brand_filter.upper() else "normal", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
-                    {"name": f"IT{i}_Prior", "type": "Paragraph", "children": "", "text": f"{row['prior_index']:.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
-                    {"name": f"IT{i}_Current", "type": "Paragraph", "children": "", "text": f"{row['current_index']:.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
-                    {"name": f"IT{i}_Change", "type": "Paragraph", "children": "", "text": f"{row['index_change']:+.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "color": "#22c55e" if row['index_change'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}}
+                    {"name": f"PT{i}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "PeerTable", "style": {"padding": "10px 12px", "fontWeight": "bold" if row['brand'].upper() == brand_filter.upper() else "normal", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"PT{i}_Tier", "type": "Paragraph", "children": "", "text": row['tier'], "parentId": "PeerTable", "style": {"padding": "10px 12px", "textAlign": "center", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent", "color": row['tier_color'], "fontWeight": "600"}},
+                    {"name": f"PT{i}_Prior", "type": "Paragraph", "children": "", "text": f"{row['prior_index']:.0f}", "parentId": "PeerTable", "style": {"padding": "10px 12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"PT{i}_Current", "type": "Paragraph", "children": "", "text": f"{row['current_index']:.0f}", "parentId": "PeerTable", "style": {"padding": "10px 12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"PT{i}_Change", "type": "Paragraph", "children": "", "text": f"{row['index_change']:+.0f}", "parentId": "PeerTable", "style": {"padding": "10px 12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#fef2f2" if row['flagged'] and row['index_change'] < 0 else ("#f0fdf4" if row['flagged'] and row['index_change'] > 0 else ("#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent")), "color": "#dc2626" if row['index_change'] < -5 else ("#16a34a" if row['index_change'] > 5 else "#374151"), "fontWeight": "bold" if row['flagged'] else "normal"}}
                 ]
             ] + [
+                # Base Size Mix Analysis Header
                 {
-                    "name": "BaseSizeHeader",
+                    "name": "MixHeader",
                     "type": "Header",
                     "children": "",
-                    "text": f"Price Index by Base Size ({brand_filter})",
-                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
+                    "text": f"Pack Size Mix Analysis ({brand_filter})",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "10px"}
                 },
                 {
-                    "name": "BaseSizeTable",
+                    "name": "MixSubtext",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "Compare index changes by pack size to identify if overall index change is due to pricing or mix shift",
+                    "style": {"fontSize": "13px", "color": "#6b7280", "marginBottom": "15px"}
+                },
+
+                # Base Size Table
+                {
+                    "name": "MixTable",
                     "type": "FlexContainer",
                     "children": "",
                     "direction": "column",
-                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                    "extraStyles": "display: grid; grid-template-columns: 1.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; font-size: 12px;"
                 },
-                {"name": "BSH_Size", "type": "Paragraph", "children": "", "text": "Base Size", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
-                {"name": "BSH_BrandPrice", "type": "Paragraph", "children": "", "text": f"{brand_filter} Price", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "BSH_CatPrice", "type": "Paragraph", "children": "", "text": "Category Avg", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "BSH_Index", "type": "Paragraph", "children": "", "text": "Index", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
+                {"name": "MTH_Size", "type": "Paragraph", "children": "", "text": "Pack Size", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "MTH_PriorIdx", "type": "Paragraph", "children": "", "text": "Prior Idx", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "MTH_CurrIdx", "type": "Paragraph", "children": "", "text": "Curr Idx", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "MTH_IdxChg", "type": "Paragraph", "children": "", "text": "Idx Chg", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "MTH_PriorMix", "type": "Paragraph", "children": "", "text": "Prior Mix", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "MTH_CurrMix", "type": "Paragraph", "children": "", "text": "Curr Mix", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "MTH_MixChg", "type": "Paragraph", "children": "", "text": "Mix Chg", "parentId": "MixTable", "style": {"padding": "10px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
             ] + [
                 item
-                for i, row in base_size_index.head(10).iterrows()
+                for i, row in enumerate(base_size_analysis[:10])
                 for item in [
-                    {"name": f"BS{i}_Size", "type": "Paragraph", "children": "", "text": row['base_size'], "parentId": "BaseSizeTable", "style": {"padding": "12px", "borderBottom": "1px solid #eee"}},
-                    {"name": f"BS{i}_BrandPrice", "type": "Paragraph", "children": "", "text": f"${row['avg_price']:.2f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"BS{i}_CatPrice", "type": "Paragraph", "children": "", "text": f"${row['category_avg_price']:.2f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    {"name": f"BS{i}_Index", "type": "Paragraph", "children": "", "text": f"{row['price_index']:.0f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "fontWeight": "bold", "color": "#22c55e" if row['price_index'] > 100 else "#ef4444", "borderBottom": "1px solid #eee"}}
+                    {"name": f"MT{i}_Size", "type": "Paragraph", "children": "", "text": row['base_size'], "parentId": "MixTable", "style": {"padding": "8px 10px", "borderBottom": "1px solid #eee"}},
+                    {"name": f"MT{i}_PriorIdx", "type": "Paragraph", "children": "", "text": f"{row['prior_index']:.0f}", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"MT{i}_CurrIdx", "type": "Paragraph", "children": "", "text": f"{row['current_index']:.0f}", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"MT{i}_IdxChg", "type": "Paragraph", "children": "", "text": f"{row['index_change']:+.0f}", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#fef2f2" if row['flagged'] and row['index_change'] < 0 else ("#f0fdf4" if row['flagged'] and row['index_change'] > 0 else "transparent"), "color": "#dc2626" if row['index_change'] < -5 else ("#16a34a" if row['index_change'] > 5 else "#374151"), "fontWeight": "bold" if row['flagged'] else "normal"}},
+                    {"name": f"MT{i}_PriorMix", "type": "Paragraph", "children": "", "text": f"{row['prior_mix']:.1f}%", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"MT{i}_CurrMix", "type": "Paragraph", "children": "", "text": f"{row['current_mix']:.1f}%", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"MT{i}_MixChg", "type": "Paragraph", "children": "", "text": f"{row['mix_change']:+.1f}%", "parentId": "MixTable", "style": {"padding": "8px 10px", "textAlign": "right", "borderBottom": "1px solid #eee", "color": "#dc2626" if row['mix_change'] < -5 else ("#16a34a" if row['mix_change'] > 5 else "#374151"), "fontWeight": "bold" if abs(row['mix_change']) > 5 else "normal"}}
                 ]
             ]
         },
