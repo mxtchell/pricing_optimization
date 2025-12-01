@@ -1138,43 +1138,51 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
                     "type": "FlexContainer",
                     "children": "",
                     "direction": "column",
-                    "extraStyles": "display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; font-size: 13px;"
+                    "extraStyles": "display: grid; grid-template-columns: 1.4fr repeat(12, 1fr) 0.8fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; font-size: 12px;"
                 },
-                # Headers - paired columns: Prior | Current for each metric
-                {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
-                # Sales pair
-                {"name": "TH_PriorSales", "type": "Paragraph", "children": "", "text": "Prior Sales", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrSales", "type": "Paragraph", "children": "", "text": "Curr Sales", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Share pair
-                {"name": "TH_PriorShare", "type": "Paragraph", "children": "", "text": "Prior Share", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_CurrShare", "type": "Paragraph", "children": "", "text": "Curr Share", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Volume pair
-                {"name": "TH_PriorVol", "type": "Paragraph", "children": "", "text": "Prior Vol", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Vol Growth", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                # Price pair
-                {"name": "TH_PriorPrice", "type": "Paragraph", "children": "", "text": "Prior Price", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
-                {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Price Chg", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                # Headers - 3 columns per metric: Prior | Current | Growth
+                {"name": "TH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                # Sales (Prior | Current | Growth)
+                {"name": "TH_PriorSales", "type": "Paragraph", "children": "", "text": "Prior $", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_CurrSales", "type": "Paragraph", "children": "", "text": "Curr $", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_SalesGrowth", "type": "Paragraph", "children": "", "text": "$ Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                # Share (Prior | Current | Growth)
+                {"name": "TH_PriorShare", "type": "Paragraph", "children": "", "text": "Prior Shr", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_CurrShare", "type": "Paragraph", "children": "", "text": "Curr Shr", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_ShareGrowth", "type": "Paragraph", "children": "", "text": "Shr Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                # Volume (Prior | Current | Growth)
+                {"name": "TH_PriorVol", "type": "Paragraph", "children": "", "text": "Prior Vol", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_CurrVol", "type": "Paragraph", "children": "", "text": "Curr Vol", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_VolGrowth", "type": "Paragraph", "children": "", "text": "Vol Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                # Price (Prior | Current | Growth)
+                {"name": "TH_PriorPrice", "type": "Paragraph", "children": "", "text": "Prior Prc", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#e8f4fc", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_CurrPrice", "type": "Paragraph", "children": "", "text": "Curr Prc", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "TH_PriceChg", "type": "Paragraph", "children": "", "text": "Prc Chg", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#fff3cd", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
                 # Threat
-                {"name": "TH_Threat", "type": "Paragraph", "children": "", "text": "Threat", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}}
+                {"name": "TH_Threat", "type": "Paragraph", "children": "", "text": "Threat", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "center"}}
             ] + [
                 item
                 for idx, row in top_threats.iterrows()
                 for item in [
-                    {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "10px 8px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
-                    # Sales pair
-                    {"name": f"TR{idx}_PriorSales", "type": "Paragraph", "children": "", "text": f"${row['prior_sales']/1e6:.1f}M" if row['prior_sales'] >= 1e6 else f"${row['prior_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrSales", "type": "Paragraph", "children": "", "text": f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    # Share pair
-                    {"name": f"TR{idx}_PriorShare", "type": "Paragraph", "children": "", "text": f"{row['prior_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_CurrShare", "type": "Paragraph", "children": "", "text": f"{row['current_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
-                    # Volume pair
-                    {"name": f"TR{idx}_PriorVol", "type": "Paragraph", "children": "", "text": f"{row['prior_volume']/1e6:.1f}M" if row['prior_volume'] >= 1e6 else f"{row['prior_volume']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_Vol", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
-                    # Price pair
-                    {"name": f"TR{idx}_PriorPrice", "type": "Paragraph", "children": "", "text": f"${row['prior_price']:.2f}", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
-                    {"name": f"TR{idx}_Price", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
+                    {"name": f"TR{idx}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "ThreatTable", "style": {"padding": "8px 6px", "fontWeight": "bold", "borderBottom": "1px solid #eee"}},
+                    # Sales (Prior | Current | Growth)
+                    {"name": f"TR{idx}_PriorSales", "type": "Paragraph", "children": "", "text": f"${row['prior_sales']/1e6:.1f}M" if row['prior_sales'] >= 1e6 else f"${row['prior_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
+                    {"name": f"TR{idx}_CurrSales", "type": "Paragraph", "children": "", "text": f"${row['current_sales']/1e6:.1f}M" if row['current_sales'] >= 1e6 else f"${row['current_sales']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_SalesGrowth", "type": "Paragraph", "children": "", "text": f"{row['sales_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['sales_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
+                    # Share (Prior | Current | Growth)
+                    {"name": f"TR{idx}_PriorShare", "type": "Paragraph", "children": "", "text": f"{row['prior_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
+                    {"name": f"TR{idx}_CurrShare", "type": "Paragraph", "children": "", "text": f"{row['current_market_share']:.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_ShareGrowth", "type": "Paragraph", "children": "", "text": f"{row['share_change']:+.1f}pp", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['share_change'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
+                    # Volume (Prior | Current | Growth)
+                    {"name": f"TR{idx}_PriorVol", "type": "Paragraph", "children": "", "text": f"{row['prior_volume']/1e6:.1f}M" if row['prior_volume'] >= 1e6 else f"{row['prior_volume']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
+                    {"name": f"TR{idx}_CurrVol", "type": "Paragraph", "children": "", "text": f"{row['current_volume']/1e6:.1f}M" if row['current_volume'] >= 1e6 else f"{row['current_volume']/1e3:.0f}K", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_VolGrowth", "type": "Paragraph", "children": "", "text": f"{row['volume_growth']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#22c55e" if row['volume_growth'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
+                    # Price (Prior | Current | Growth)
+                    {"name": f"TR{idx}_PriorPrice", "type": "Paragraph", "children": "", "text": f"${row['prior_price']:.2f}", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#f8fbfe"}},
+                    {"name": f"TR{idx}_CurrPrice", "type": "Paragraph", "children": "", "text": f"${row['current_price']:.2f}", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"TR{idx}_PriceChg", "type": "Paragraph", "children": "", "text": f"{row['price_change']:+.1f}%", "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "right", "color": "#ef4444" if row['price_change'] < 0 else "#22c55e", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#fffbeb"}},
                     # Threat
-                    {"name": f"TR{idx}_Threat", "type": "Paragraph", "children": "", "text": "🔴 HIGH" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡 WATCH" if row['volume_growth'] > 0 else "🟢 LOW"), "parentId": "ThreatTable", "style": {"padding": "10px 8px", "textAlign": "center", "fontWeight": "bold", "borderBottom": "1px solid #eee"}}
+                    {"name": f"TR{idx}_Threat", "type": "Paragraph", "children": "", "text": "🔴" if (row['volume_growth'] > 0 and row['price_change'] <= 0) else ("🟡" if row['volume_growth'] > 0 else "🟢"), "parentId": "ThreatTable", "style": {"padding": "8px 6px", "textAlign": "center", "fontWeight": "bold", "borderBottom": "1px solid #eee"}}
                 ]
             ]
         },
@@ -1295,6 +1303,19 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
         },
         "inputVariables": []
     }, {})
+
+    # Add prior period pill for Tab 2
+    if mid_point_date:
+        first_month = str(all_months[0])[:10]
+        last_prior_month = str(all_months[len(all_months) // 2 - 1])[:10] if len(all_months) > 1 else first_month
+        first_curr_month = str(mid_point_date)[:10]
+        last_month = str(all_months[-1])[:10]
+        param_pills.append(
+            ParameterDisplayDescription(key="prior_period", value=f"Prior: {first_month} to {last_prior_month}")
+        )
+        param_pills.append(
+            ParameterDisplayDescription(key="current_period", value=f"Current: {first_curr_month} to {last_month}")
+        )
 
     return SkillOutput(
         final_prompt=brief_summary,
