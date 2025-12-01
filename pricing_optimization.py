@@ -1333,13 +1333,197 @@ Use markdown formatting. **Limit response to 350 words maximum.**"""
     param_pills.append(ParameterDisplayDescription(key="prior_period", value=prior_text))
     param_pills.append(ParameterDisplayDescription(key="current_period", value=curr_text))
 
+    # ===== TAB 4: PRICE INDEX =====
+    # Calculate price index (category average = 100) over time
+
+    # Get monthly price data for all brands
+    monthly_prices = full_df.groupby(['month_new', 'brand']).agg({
+        'total_sales': 'sum',
+        'total_units': 'sum'
+    }).reset_index()
+    monthly_prices['avg_price'] = monthly_prices['total_sales'] / monthly_prices['total_units']
+
+    # Calculate category average price per month
+    category_avg = full_df.groupby('month_new').agg({
+        'total_sales': 'sum',
+        'total_units': 'sum'
+    }).reset_index()
+    category_avg['category_avg_price'] = category_avg['total_sales'] / category_avg['total_units']
+
+    # Merge and calculate index
+    monthly_prices = monthly_prices.merge(category_avg[['month_new', 'category_avg_price']], on='month_new')
+    monthly_prices['price_index'] = (monthly_prices['avg_price'] / monthly_prices['category_avg_price']) * 100
+
+    # Get top brands by volume for the chart
+    top_brands_for_index = full_df.groupby('brand')['total_units'].sum().nlargest(6).index.tolist()
+    if brand_filter.upper() not in [b.upper() for b in top_brands_for_index]:
+        top_brands_for_index = [brand_filter] + top_brands_for_index[:5]
+
+    # Build line chart series
+    index_series = []
+    months_list = sorted(monthly_prices['month_new'].unique())
+    month_labels = [str(m)[:7] for m in months_list]
+
+    for brand in top_brands_for_index:
+        brand_data = monthly_prices[monthly_prices['brand'].str.upper() == brand.upper()].sort_values('month_new')
+        # Fill missing months with None
+        brand_index_values = []
+        for m in months_list:
+            val = brand_data[brand_data['month_new'] == m]['price_index'].values
+            brand_index_values.append(round(val[0], 1) if len(val) > 0 else None)
+
+        color = "#3b82f6" if brand.upper() == brand_filter.upper() else None
+        line_width = 3 if brand.upper() == brand_filter.upper() else 1.5
+        index_series.append({
+            "name": brand,
+            "data": brand_index_values,
+            "color": color,
+            "lineWidth": line_width
+        })
+
+    price_index_chart = {
+        "chart": {"type": "line", "height": 400},
+        "title": {"text": "Price Index Trend (Category Avg = 100)"},
+        "xAxis": {
+            "categories": month_labels,
+            "title": {"text": "Month"},
+            "labels": {"rotation": -45}
+        },
+        "yAxis": {
+            "title": {"text": "Price Index"},
+            "plotLines": [{"value": 100, "color": "#666", "dashStyle": "dash", "width": 2, "label": {"text": "Category Avg", "align": "right"}}]
+        },
+        "tooltip": {
+            "shared": True,
+            "valueSuffix": ""
+        },
+        "series": index_series,
+        "legend": {"align": "center", "verticalAlign": "bottom"},
+        "credits": {"enabled": False}
+    }
+
+    # Build price index table by brand (current vs prior period)
+    index_table_data = []
+    for brand in top_brands_for_index:
+        brand_current = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
+                                        (monthly_prices['month_new'] >= curr_start) &
+                                        (monthly_prices['month_new'] <= curr_end)]
+        brand_prior = monthly_prices[(monthly_prices['brand'].str.upper() == brand.upper()) &
+                                      (monthly_prices['month_new'] >= prior_start) &
+                                      (monthly_prices['month_new'] <= prior_end)]
+
+        curr_idx = brand_current['price_index'].mean() if len(brand_current) > 0 else 0
+        prior_idx = brand_prior['price_index'].mean() if len(brand_prior) > 0 else 0
+        idx_change = curr_idx - prior_idx
+
+        index_table_data.append({
+            'brand': brand,
+            'prior_index': prior_idx,
+            'current_index': curr_idx,
+            'index_change': idx_change
+        })
+
+    # Build price index by base_size for target brand
+    base_size_index = full_df[full_df['brand'].str.upper() == brand_filter.upper()].groupby('base_size').agg({
+        'total_sales': 'sum',
+        'total_units': 'sum'
+    }).reset_index()
+    base_size_index['avg_price'] = base_size_index['total_sales'] / base_size_index['total_units']
+
+    # Category avg by base_size
+    category_base_avg = full_df.groupby('base_size').agg({
+        'total_sales': 'sum',
+        'total_units': 'sum'
+    }).reset_index()
+    category_base_avg['category_avg_price'] = category_base_avg['total_sales'] / category_base_avg['total_units']
+
+    base_size_index = base_size_index.merge(category_base_avg[['base_size', 'category_avg_price']], on='base_size')
+    base_size_index['price_index'] = (base_size_index['avg_price'] / base_size_index['category_avg_price']) * 100
+    base_size_index = base_size_index.sort_values('price_index', ascending=False)
+
+    # Build Tab 4 layout
+    price_index_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "style": {"padding": "20px"},
+            "children": [
+                {
+                    "name": "IndexChart",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "minHeight": "400px",
+                    "options": price_index_chart
+                },
+                {
+                    "name": "IndexTableHeader",
+                    "type": "Header",
+                    "children": "",
+                    "text": "Price Index by Brand",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
+                },
+                {
+                    "name": "IndexTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                },
+                {"name": "ITH_Brand", "type": "Paragraph", "children": "", "text": "Brand", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "ITH_Prior", "type": "Paragraph", "children": "", "text": "Prior Index", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "ITH_Current", "type": "Paragraph", "children": "", "text": "Current Index", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "ITH_Change", "type": "Paragraph", "children": "", "text": "Change", "parentId": "IndexTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
+            ] + [
+                item
+                for i, row in enumerate(index_table_data)
+                for item in [
+                    {"name": f"IT{i}_Brand", "type": "Paragraph", "children": "", "text": row['brand'], "parentId": "IndexTable", "style": {"padding": "12px", "fontWeight": "bold" if row['brand'].upper() == brand_filter.upper() else "normal", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"IT{i}_Prior", "type": "Paragraph", "children": "", "text": f"{row['prior_index']:.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"IT{i}_Current", "type": "Paragraph", "children": "", "text": f"{row['current_index']:.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}},
+                    {"name": f"IT{i}_Change", "type": "Paragraph", "children": "", "text": f"{row['index_change']:+.1f}", "parentId": "IndexTable", "style": {"padding": "12px", "textAlign": "right", "color": "#22c55e" if row['index_change'] > 0 else "#ef4444", "fontWeight": "bold", "borderBottom": "1px solid #eee", "backgroundColor": "#eff6ff" if row['brand'].upper() == brand_filter.upper() else "transparent"}}
+                ]
+            ] + [
+                {
+                    "name": "BaseSizeHeader",
+                    "type": "Header",
+                    "children": "",
+                    "text": f"Price Index by Base Size ({brand_filter})",
+                    "style": {"fontSize": "18px", "fontWeight": "bold", "marginTop": "30px", "marginBottom": "15px"}
+                },
+                {
+                    "name": "BaseSizeTable",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "extraStyles": "display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"
+                },
+                {"name": "BSH_Size", "type": "Paragraph", "children": "", "text": "Base Size", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd"}},
+                {"name": "BSH_BrandPrice", "type": "Paragraph", "children": "", "text": f"{brand_filter} Price", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "BSH_CatPrice", "type": "Paragraph", "children": "", "text": "Category Avg", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}},
+                {"name": "BSH_Index", "type": "Paragraph", "children": "", "text": "Index", "parentId": "BaseSizeTable", "style": {"padding": "12px", "backgroundColor": "#f5f5f5", "fontWeight": "bold", "borderBottom": "2px solid #ddd", "textAlign": "right"}}
+            ] + [
+                item
+                for i, row in base_size_index.head(10).iterrows()
+                for item in [
+                    {"name": f"BS{i}_Size", "type": "Paragraph", "children": "", "text": row['base_size'], "parentId": "BaseSizeTable", "style": {"padding": "12px", "borderBottom": "1px solid #eee"}},
+                    {"name": f"BS{i}_BrandPrice", "type": "Paragraph", "children": "", "text": f"${row['avg_price']:.2f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"BS{i}_CatPrice", "type": "Paragraph", "children": "", "text": f"${row['category_avg_price']:.2f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "borderBottom": "1px solid #eee"}},
+                    {"name": f"BS{i}_Index", "type": "Paragraph", "children": "", "text": f"{row['price_index']:.0f}", "parentId": "BaseSizeTable", "style": {"padding": "12px", "textAlign": "right", "fontWeight": "bold", "color": "#22c55e" if row['price_index'] > 100 else "#ef4444", "borderBottom": "1px solid #eee"}}
+                ]
+            ]
+        },
+        "inputVariables": []
+    }
+
+    price_index_html = wire_layout(price_index_layout, {})
+
     return SkillOutput(
         final_prompt=brief_summary,
         narrative=detailed_narrative,
         visualizations=[
             SkillVisualization(title="Competitive Comparison", layout=html),
             SkillVisualization(title="Competitor Threats", layout=combined_tab2_html),
-            SkillVisualization(title="Market Share Trend", layout=market_share_html)
+            SkillVisualization(title="Market Share Trend", layout=market_share_html),
+            SkillVisualization(title="Price Index", layout=price_index_html)
         ],
         parameter_display_descriptions=param_pills
     )
