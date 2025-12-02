@@ -142,18 +142,38 @@ def pricing_optimization(parameters: SkillInput):
         sql_query += f" AND month_new <= '{end_date}'"
 
     # Add dimension filters (case-insensitive)
+    # Map AR dimension names to actual SQL column names
+    dim_column_map = {
+        'max_time_date': 'month_new'
+    }
+
     if filters:
         for filter_item in filters:
             if isinstance(filter_item, dict) and 'dim' in filter_item and 'val' in filter_item:
                 dim = filter_item['dim']
+                # Map dimension name to SQL column if needed
+                sql_column = dim_column_map.get(dim, dim)
                 values = filter_item['val']
-                if isinstance(values, list):
+
+                # Handle date dimensions differently (no UPPER, use date comparison)
+                if dim == 'max_time_date':
+                    if isinstance(values, list) and len(values) >= 2:
+                        # Assume first is start, last is end for date range
+                        sql_query += f" AND {sql_column} >= '{values[0]}' AND {sql_column} <= '{values[-1]}'"
+                        print(f"DEBUG: Added date filter {sql_column} between '{values[0]}' and '{values[-1]}'")
+                    elif isinstance(values, list) and len(values) == 1:
+                        sql_query += f" AND {sql_column} = '{values[0]}'"
+                        print(f"DEBUG: Added date filter {sql_column} = '{values[0]}'")
+                    else:
+                        sql_query += f" AND {sql_column} = '{values}'"
+                        print(f"DEBUG: Added date filter {sql_column} = '{values}'")
+                elif isinstance(values, list):
                     values_str = "', '".join(str(v).upper() for v in values)
-                    sql_query += f" AND UPPER({dim}) IN ('{values_str}')"
-                    print(f"DEBUG: Added filter UPPER({dim}) IN ('{values_str}')")
+                    sql_query += f" AND UPPER({sql_column}) IN ('{values_str}')"
+                    print(f"DEBUG: Added filter UPPER({sql_column}) IN ('{values_str}')")
                 else:
-                    sql_query += f" AND UPPER({dim}) = '{str(values).upper()}'"
-                    print(f"DEBUG: Added filter UPPER({dim}) = '{str(values).upper()}'")
+                    sql_query += f" AND UPPER({sql_column}) = '{str(values).upper()}'"
+                    print(f"DEBUG: Added filter UPPER({sql_column}) = '{str(values).upper()}'")
 
     sql_query += f"""
     GROUP BY {dimension}, month_new
