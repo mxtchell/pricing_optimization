@@ -63,6 +63,12 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             name="price_change_pct",
             description="For what-if analysis: percentage price change to simulate (e.g., 10 for +10%)",
             default_value=10
+        ),
+        SkillParameter(
+            name="max_prompt",
+            parameter_type="prompt",
+            description="Prompt for the chat response (right panel).",
+            default_value="Answer user question in 30 words or less using following facts:\n{{facts}}"
         )
     ]
 )
@@ -76,6 +82,7 @@ def pricing_optimization(parameters: SkillInput):
     end_date = parameters.arguments.end_date
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
     price_change_pct = parameters.arguments.price_change_pct or 10
+    max_prompt = parameters.arguments.max_prompt or "Here's your pricing analysis. Check the visualization tabs for detailed competitive comparison, competitor threats, and price index analysis."
 
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
 
