@@ -7,6 +7,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
+import jinja2
 from datetime import datetime
 from typing import Optional, List
 
@@ -67,8 +68,27 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
         SkillParameter(
             name="max_prompt",
             parameter_type="prompt",
-            description="Prompt for the chat response (right panel).",
+            description="Prompt for the chat response (left panel).",
             default_value="Answer user question in 30 words or less using following facts:\n{{facts}}"
+        ),
+        SkillParameter(
+            name="insight_prompt",
+            parameter_type="prompt",
+            description="Prompt for the insights panel (right panel).",
+            default_value="""Tell a cohesive pricing strategy story. Answer these 3 questions:
+
+**DATA:**
+{{facts}}
+
+**ANSWER THESE 3 QUESTIONS:**
+
+1. **Pricing Strategy**: Is the brand maintaining their tier positioning? Is the index change from mix shift or actual pricing?
+
+2. **Price vs Volume Tradeoff**: When competitors cut prices, did they gain share at the brand's expense? Is the premium strategy working or costing them volume?
+
+3. **Pack Opportunities**: Which specific packs should the brand adjust pricing on to gain share/sales?
+
+Be direct and specific. Use the data provided. **250 words maximum.**"""
         )
     ]
 )
@@ -82,7 +102,8 @@ def pricing_optimization(parameters: SkillInput):
     end_date = parameters.arguments.end_date
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
     price_change_pct = parameters.arguments.price_change_pct or 10
-    max_prompt = parameters.arguments.max_prompt or "Here's your pricing analysis. Check the visualization tabs for detailed competitive comparison, competitor threats, and price index analysis."
+    max_prompt = parameters.arguments.max_prompt or "Answer user question in 30 words or less using following facts:\n{{facts}}"
+    insight_prompt_template = parameters.arguments.insight_prompt or ""
 
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
 
@@ -1613,37 +1634,25 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
     target_share_change = target_threat_data['share_change'] if target_threat_data else 0
     target_price_change = target_threat_data['price_change'] if target_threat_data else 0
 
-    insight_prompt = f"""Tell a cohesive pricing strategy story for {brand_filter}. Answer these 3 questions:
-
-**DATA:**
+    # Build facts string for template rendering
+    facts = f"""- Brand: {brand_filter}
 - Price Tier: {target_tier} (Index: {target_curr_idx:.0f}, {target_idx_change:+.1f} pts YoY)
 - {brand_filter} Performance: Volume {target_vol_growth:+.1f}%, Share {target_share_change:+.1f}pp, Price {target_price_change:+.1f}%
 - Position vs Competition: {insight_data['weighted_premium']:+.1f}% avg premium
+- Competitors cutting prices & gaining: {'; '.join(insight_data['threat_summary'][:3]) if insight_data['threat_summary'] else 'None identified'}
+- Pack sizes with significant changes: {'; '.join(mix_summary[:3]) if mix_summary else 'No major shifts'}"""
 
-**Competitors cutting prices & gaining:**
-{chr(10).join(insight_data['threat_summary'][:3]) if insight_data['threat_summary'] else "None identified"}
-
-**Pack sizes with significant changes:**
-{chr(10).join(mix_summary[:3]) if mix_summary else "No major shifts"}
-
-**Premium packs** (priced above competition):
-{chr(10).join([f"- {row[dimension]}: +{row['price_premium_pct']:.0f}%" for _, row in insight_data['premium_items'].head(3).iterrows()]) if len(insight_data['premium_items']) > 0 else "None"}
-
-**Value packs** (priced below competition):
-{chr(10).join([f"- {row[dimension]}: {row['price_premium_pct']:.0f}%" for _, row in insight_data['discount_items'].head(3).iterrows()]) if len(insight_data['discount_items']) > 0 else "None"}
-
-**ANSWER THESE 3 QUESTIONS:**
-
-1. **Pricing Strategy**: Is {brand_filter} maintaining their {target_tier} positioning? Is the index change from mix shift or actual pricing?
-
-2. **Price vs Volume Tradeoff**: When competitors cut prices, did they gain share at {brand_filter}'s expense? Is {brand_filter}'s premium strategy working or costing them volume?
-
-3. **Pack Opportunities**: Which specific packs should {brand_filter} adjust pricing on to gain share/sales?
-
-Be direct and specific. Use the data provided. **250 words maximum.**"""
-
+    # Render max_prompt template with facts for chat response
     try:
-        detailed_narrative = ar_utils.get_llm_response(insight_prompt)
+        max_response_prompt = jinja2.Template(max_prompt).render(facts=facts)
+    except Exception as e:
+        print(f"DEBUG: max_prompt template render failed: {e}")
+        max_response_prompt = brief_summary
+
+    # Render insight_prompt template with facts for narrative
+    try:
+        rendered_insight_prompt = jinja2.Template(insight_prompt_template).render(facts=facts)
+        detailed_narrative = ar_utils.get_llm_response(rendered_insight_prompt)
         if not detailed_narrative:
             detailed_narrative = f"""## Pricing Strategy Assessment
 
@@ -1658,7 +1667,7 @@ Be direct and specific. Use the data provided. **250 words maximum.**"""
         detailed_narrative = f"## Pricing Strategy\n\n{brand_filter} operates in the {target_tier} tier (Index: {target_curr_idx:.0f})."
 
     return SkillOutput(
-        final_prompt=brief_summary,
+        final_prompt=max_response_prompt,
         narrative=detailed_narrative,
         visualizations=[
             SkillVisualization(title="Competitive Comparison", layout=html),
