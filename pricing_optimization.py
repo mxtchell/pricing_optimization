@@ -1189,101 +1189,6 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
 
     combined_tab2_html = wire_layout(tab2_layout, {})
 
-    # ===== TAB 3: MARKET SHARE TREND =====
-    # Calculate monthly market share for top brands
-    monthly_share = full_df.groupby(['month_new', 'brand']).agg({
-        'total_units': 'sum'
-    }).reset_index()
-
-    # Get top 6 brands by total volume (including target brand)
-    top_brands = full_df.groupby('brand')['total_units'].sum().nlargest(6).index.tolist()
-
-    # Filter to top brands
-    monthly_share_top = monthly_share[monthly_share['brand'].isin(top_brands)].copy()
-
-    # Calculate % share by month
-    monthly_totals = monthly_share_top.groupby('month_new')['total_units'].sum()
-    monthly_share_top['share_pct'] = monthly_share_top.apply(
-        lambda row: (row['total_units'] / monthly_totals[row['month_new']] * 100) if monthly_totals[row['month_new']] > 0 else 0,
-        axis=1
-    )
-
-    # Pivot for stacked area chart
-    share_pivot = monthly_share_top.pivot(index='month_new', columns='brand', values='share_pct').fillna(0)
-
-    # Sort by date
-    share_pivot = share_pivot.sort_index()
-
-    # Build series data
-    months = [str(m)[:10] for m in share_pivot.index.tolist()]
-    series_data = []
-
-    for brand in share_pivot.columns:
-        # Highlight target brand
-        color = "#3b82f6" if brand.upper() == brand_filter.upper() else None
-        series_data.append({
-            "name": brand,
-            "data": [round(x, 1) for x in share_pivot[brand].tolist()],
-            "color": color
-        })
-
-    market_share_chart = {
-        "chart": {"type": "area", "height": 500},
-        "title": {
-            "text": "Market Share Trend Over Time",
-            "style": {"fontSize": "20px", "fontWeight": "bold"}
-        },
-        "subtitle": {
-            "text": f"{brand_display} vs Top Competitors",
-            "style": {"fontSize": "14px"}
-        },
-        "xAxis": {
-            "categories": months,
-            "title": {"text": "Month"}
-        },
-        "yAxis": {
-            "min": 0,
-            "max": 100,
-            "title": {"text": "Market Share (%)"},
-            "labels": {"format": "{value}%"}
-        },
-        "tooltip": {
-            "shared": True,
-            "backgroundColor": "rgba(255, 255, 255, 1)",
-            "borderColor": "#333",
-            "borderWidth": 2,
-            "valueSuffix": "%"
-        },
-        "plotOptions": {
-            "area": {
-                "stacking": "normal",
-                "lineWidth": 1,
-                "marker": {"enabled": False}
-            }
-        },
-        "series": series_data,
-        "legend": {
-            "align": "center",
-            "verticalAlign": "bottom"
-        },
-        "credits": {"enabled": False}
-    }
-
-    market_share_html = wire_layout({
-        "layoutJson": {
-            "type": "Document",
-            "style": {"padding": "20px"},
-            "children": [{
-                "name": "MarketShareChart",
-                "type": "HighchartsChart",
-                "children": "",
-                "minHeight": "500px",
-                "options": market_share_chart
-            }]
-        },
-        "inputVariables": []
-    }, {})
-
     # Add YoY period pills
     prior_start_str = str(prior_period_start)[:7]  # YYYY-MM
     prior_end_str = str(prior_period_end)[:7]
@@ -1675,64 +1580,55 @@ def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filte
         if abs(bs['index_change']) > 5 or abs(bs['mix_change']) > 5:
             mix_summary.append(f"- {bs['base_size']}: Index {bs['index_change']:+.0f} pts, Mix {bs['mix_change']:+.1f}%")
 
-    insight_prompt = f"""Analyze this competitive pricing and price index landscape:
+    # Get target brand's sales/volume/share changes for context
+    target_threat_data = next((t for t in competitors_df_analysis.to_dict('records') if t.get('brand', '').upper() == brand_filter.upper()), None)
+    target_vol_growth = target_threat_data['volume_growth'] if target_threat_data else 0
+    target_share_change = target_threat_data['share_change'] if target_threat_data else 0
+    target_price_change = target_threat_data['price_change'] if target_threat_data else 0
 
-**Brand**: {insight_data['brand_filter']}
-**Dimension**: {insight_data['dimension'].replace('_', ' ').title()}
-**Overall Position**: {insight_data['weighted_premium']:+.1f}% avg premium vs competition
-**Volume Share**: {insight_data['volume_share']:.1f}%
+    insight_prompt = f"""Tell a cohesive pricing strategy story for {brand_filter}. Answer these 3 questions:
 
-**Price Index Analysis**:
-- Current Price Tier: {target_tier} (Index: {target_curr_idx:.0f})
-- Index Change YoY: {target_idx_change:+.1f} pts
-- Diagnostic: {diagnostic_text}
+**DATA:**
+- Price Tier: {target_tier} (Index: {target_curr_idx:.0f}, {target_idx_change:+.1f} pts YoY)
+- {brand_filter} Performance: Volume {target_vol_growth:+.1f}%, Share {target_share_change:+.1f}pp, Price {target_price_change:+.1f}%
+- Position vs Competition: {insight_data['weighted_premium']:+.1f}% avg premium
 
-**{target_tier} Tier Peers**:
-{chr(10).join(peer_summary) if peer_summary else "No direct peers with significant changes"}
+**Competitors cutting prices & gaining:**
+{chr(10).join(insight_data['threat_summary'][:3]) if insight_data['threat_summary'] else "None identified"}
 
-**Pack Size Mix Changes** (significant shifts):
-{chr(10).join(mix_summary) if mix_summary else "No significant mix shifts detected"}
+**Pack sizes with significant changes:**
+{chr(10).join(mix_summary[:3]) if mix_summary else "No major shifts"}
 
-**Premium Positioned** (priced above competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in insight_data['premium_items'].iterrows()]) if len(insight_data['premium_items']) > 0 else "None"}
+**Premium packs** (priced above competition):
+{chr(10).join([f"- {row[dimension]}: +{row['price_premium_pct']:.0f}%" for _, row in insight_data['premium_items'].head(3).iterrows()]) if len(insight_data['premium_items']) > 0 else "None"}
 
-**Value Positioned** (priced below competition):
-{chr(10).join([f"- {row[dimension]}: {brand_filter} ${row['avg_price_target']:.2f} vs Competition ${row['avg_price_comp']:.2f} ({row['price_premium_pct']:+.1f}%)" for _, row in insight_data['discount_items'].iterrows()]) if len(insight_data['discount_items']) > 0 else "None"}
+**Value packs** (priced below competition):
+{chr(10).join([f"- {row[dimension]}: {row['price_premium_pct']:.0f}%" for _, row in insight_data['discount_items'].head(3).iterrows()]) if len(insight_data['discount_items']) > 0 else "None"}
 
-**Top Competitive Threats**:
-{chr(10).join(insight_data['threat_summary']) if len(insight_data['threat_summary']) > 0 else "None"}
+**ANSWER THESE 3 QUESTIONS:**
 
-Provide strategic analysis with these sections:
-1. **Competitive Positioning**: What does the pricing pattern and price index reveal about {brand_filter}'s strategy?
-2. **Price Index Assessment**: Is the index change due to mix shift or actual pricing? What does peer comparison tell us?
-3. **Opportunities**: Where can {brand_filter} optimize pricing?
-4. **Competitive Threats**: Which competitors in the {target_tier} tier pose the biggest risk?
-5. **Risks**: Where is {brand_filter} vulnerable (overpriced or index declining)?
-6. **Recommendations**: Specific actions for pricing and competitive response.
+1. **Pricing Strategy**: Is {brand_filter} maintaining their {target_tier} positioning? Is the index change from mix shift or actual pricing?
 
-Use markdown formatting. **Limit response to 400 words maximum.**"""
+2. **Price vs Volume Tradeoff**: When competitors cut prices, did they gain share at {brand_filter}'s expense? Is {brand_filter}'s premium strategy working or costing them volume?
+
+3. **Pack Opportunities**: Which specific packs should {brand_filter} adjust pricing on to gain share/sales?
+
+Be direct and specific. Use the data provided. **250 words maximum.**"""
 
     try:
         detailed_narrative = ar_utils.get_llm_response(insight_prompt)
         if not detailed_narrative:
-            detailed_narrative = f"""## Competitive Positioning Analysis
+            detailed_narrative = f"""## Pricing Strategy Assessment
 
-{brand_filter} is positioned at {insight_data['weighted_premium']:+.1f}% vs competition on average, holding {insight_data['volume_share']:.1f}% volume share.
+**1. Pricing Strategy**: {brand_filter} is a {target_tier} tier brand (Index: {target_curr_idx:.0f}). Index changed {target_idx_change:+.1f} pts YoY. {diagnostic_text}
 
-**Price Index**: {target_tier} tier (Index: {target_curr_idx:.0f}), changed {target_idx_change:+.1f} pts YoY.
+**2. Price vs Volume**: {brand_filter} volume changed {target_vol_growth:+.1f}% while share moved {target_share_change:+.1f}pp. Premium positioning at {insight_data['weighted_premium']:+.1f}% vs competition.
 
-**Assessment**: {diagnostic_text}
-
-**Key Findings:**
-- Price leadership in {insight_data['price_leaders']} of {insight_data['num_skus']} {dimension.replace('_', ' ')} values analyzed
-- Strategic mix of premium and value positioning across portfolio
-
-**Competitive Threats:**
-{chr(10).join(insight_data['threat_summary'][:3]) if len(insight_data['threat_summary']) > 0 else "No major threats identified"}
+**3. Pack Opportunities**: Review packs where {brand_filter} is significantly over/under-priced vs competition for adjustment opportunities.
 """
     except Exception as e:
         print(f"DEBUG: LLM insight generation failed: {e}")
-        detailed_narrative = f"## Competitive Positioning\n\n{brand_filter} competitive analysis complete. Price Index: {target_curr_idx:.0f} ({target_tier} tier)."
+        detailed_narrative = f"## Pricing Strategy\n\n{brand_filter} operates in the {target_tier} tier (Index: {target_curr_idx:.0f})."
 
     return SkillOutput(
         final_prompt=brief_summary,
@@ -1740,7 +1636,6 @@ Use markdown formatting. **Limit response to 400 words maximum.**"""
         visualizations=[
             SkillVisualization(title="Competitive Comparison", layout=html),
             SkillVisualization(title="Competitor Threats", layout=combined_tab2_html),
-            SkillVisualization(title="Market Share Trend", layout=market_share_html),
             SkillVisualization(title="Price Index", layout=price_index_html)
         ],
         parameter_display_descriptions=param_pills
