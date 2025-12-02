@@ -103,7 +103,20 @@ def pricing_optimization(parameters: SkillInput):
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
     price_change_pct = parameters.arguments.price_change_pct or 10
     max_prompt = parameters.arguments.max_prompt or "Answer user question in 30 words or less using following facts:\n{{facts}}"
-    insight_prompt_template = parameters.arguments.insight_prompt or ""
+    insight_prompt_template = parameters.arguments.insight_prompt or """Tell a cohesive pricing strategy story. Answer these 3 questions:
+
+**DATA:**
+{{facts}}
+
+**ANSWER THESE 3 QUESTIONS:**
+
+1. **Pricing Strategy**: Is the brand maintaining their tier positioning? Is the index change from mix shift or actual pricing?
+
+2. **Price vs Volume Tradeoff**: When competitors cut prices, did they gain share at the brand's expense? Is the premium strategy working or costing them volume?
+
+3. **Pack Opportunities**: Which specific packs should the brand adjust pricing on to gain share/sales?
+
+Be direct and specific. Use the data provided. **250 words maximum.**"""
 
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
 
