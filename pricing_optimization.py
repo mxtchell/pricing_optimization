@@ -1658,11 +1658,22 @@ Be direct and specific. Use the data provided. **250 words maximum.**"""
         if abs(bs['index_change']) > 5 or abs(bs['mix_change']) > 5:
             mix_summary.append(f"- {bs['base_size']}: Index {bs['index_change']:+.0f} pts, Mix {bs['mix_change']:+.1f}%")
 
-    # Get target brand's sales/volume/share changes for context
-    target_threat_data = next((t for t in competitors_df_analysis.to_dict('records') if t.get('brand', '').upper() == brand_filter.upper()), None)
-    target_vol_growth = target_threat_data['volume_growth'] if target_threat_data else 0
-    target_share_change = target_threat_data['share_change'] if target_threat_data else 0
-    target_price_change = target_threat_data['price_change'] if target_threat_data else 0
+    # Calculate target brand's sales/volume/share changes (not in competitors_df since it's filtered out)
+    target_prior = prior_df[prior_df['brand'].str.upper() == brand_filter.upper()]
+    target_current = current_df[current_df['brand'].str.upper() == brand_filter.upper()]
+
+    target_prior_units = target_prior['total_units'].sum() if len(target_prior) > 0 else 0
+    target_current_units = target_current['total_units'].sum() if len(target_current) > 0 else 0
+    target_prior_sales = target_prior['total_sales'].sum() if len(target_prior) > 0 else 0
+    target_current_sales = target_current['total_sales'].sum() if len(target_current) > 0 else 0
+    target_prior_price = target_prior_sales / target_prior_units if target_prior_units > 0 else 0
+    target_current_price = target_current_sales / target_current_units if target_current_units > 0 else 0
+    target_prior_share = (target_prior_units / prior_market_units * 100) if prior_market_units > 0 else 0
+    target_current_share = (target_current_units / current_market_units * 100) if current_market_units > 0 else 0
+
+    target_vol_growth = ((target_current_units - target_prior_units) / target_prior_units * 100) if target_prior_units > 0 else 0
+    target_share_change = target_current_share - target_prior_share
+    target_price_change = ((target_current_price - target_prior_price) / target_prior_price * 100) if target_prior_price > 0 else 0
 
     # Build facts string for template rendering
     facts = f"""- Brand: {brand_filter}
