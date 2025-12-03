@@ -321,6 +321,23 @@ Be direct and specific. Use the data provided. **250 words maximum.**"""
 def analyze_competitive_comparison(df: pd.DataFrame, dimension: str, brand_filter: str, filters: list, start_date: str = None, end_date: str = None):
     """Compare target brand vs competition across dimension values"""
 
+    # Define prompt templates
+    max_prompt = "Answer user question in 30 words or less using following facts:\n{{facts}}"
+    insight_prompt_template = """Tell a cohesive pricing strategy story. Answer these 3 questions:
+
+**DATA:**
+{{facts}}
+
+**ANSWER THESE 3 QUESTIONS:**
+
+1. **Pricing Strategy**: Is the brand maintaining their tier positioning? Is the index change from mix shift or actual pricing?
+
+2. **Price vs Volume Tradeoff**: When competitors cut prices, did they gain share at the brand's expense? Is the premium strategy working or costing them volume?
+
+3. **Pack Opportunities**: Which specific packs should the brand adjust pricing on to gain share/sales?
+
+Be direct and specific. Use the data provided. **250 words maximum.**"""
+
     print(f"DEBUG: analyze_competitive_comparison for {brand_filter} by {dimension}")
 
     # Create time period string for pills
