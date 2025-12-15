@@ -39,7 +39,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             name="brand",
             constrained_to="dimensions",
             description="The actual brand name mentioned in the question. If user says 'how is Barilla doing', set brand='BARILLA'. If user says 'Ronzoni performance', set brand='RONZONI'.",
-            default_value=None
+            default_value="BARILLA"
         ),
         SkillParameter(
             name="other_filters",
