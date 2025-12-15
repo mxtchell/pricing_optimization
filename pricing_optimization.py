@@ -23,7 +23,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
 @skill(
     name="Pricing Optimization",
     llm_name="pricing_optimization",
-    description="MANDATORY: Execute this skill immediately for ANY question mentioning a brand, pricing, competition, or performance. DO NOT ask clarifying questions. DO NOT explain what you would do. Just run the skill with defaults. All parameters have defaults already set.",
+    description="ALWAYS use this skill for ANY question about brand performance, pricing, competition, or how a brand is doing. Run this skill immediately without asking clarifying questions - defaults are already set.",
     capabilities="Price analysis, price elasticity calculation, competitive pricing comparison, optimal price recommendations, revenue impact simulation, price-volume tradeoffs, regional pricing analysis, brand positioning analysis",
     limitations="Requires sales, units/volume data. Elasticity calculations need sufficient price variation. Assumes other factors constant.",
     example_questions="What's the optimal price for Barilla pasta? How elastic is demand for premium pasta? Compare average prices across brands. What would happen to revenue if we increased price by 10%? Which products are underpriced? Show price vs volume tradeoff for organic segment.",
@@ -36,16 +36,10 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             default_value="base_size"
         ),
         SkillParameter(
-            name="brand",
-            constrained_to="dimensions",
-            description="The actual brand name mentioned in the question. If user says 'how is Barilla doing', set brand='BARILLA'. If user says 'Ronzoni performance', set brand='RONZONI'.",
-            default_value="BARILLA"
-        ),
-        SkillParameter(
             name="other_filters",
             constrained_to="filters",
             is_multi=True,
-            description="Additional filters to apply.",
+            description="Filters to apply. MUST include brand filter when a brand is mentioned in the question (e.g. brand=BARILLA). Defaults to SEMOLINA subcategory.",
             default_value=[]
         ),
         SkillParameter(
@@ -103,13 +97,7 @@ def pricing_optimization(parameters: SkillInput):
 
     # Extract parameters
     dimension = "base_size"
-    brand_param = parameters.arguments.brand
-    filters = list(parameters.arguments.other_filters or [])
-
-    # Add brand filter if brand parameter is provided
-    if brand_param:
-        filters.append({'dim': 'brand', 'val': [brand_param.upper()]})
-        print(f"DEBUG: Added brand filter from parameter: {brand_param}")
+    filters = parameters.arguments.other_filters or []
     start_date = parameters.arguments.start_date
     end_date = parameters.arguments.end_date
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
