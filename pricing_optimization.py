@@ -23,7 +23,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
 @skill(
     name="Pricing Optimization",
     llm_name="pricing_optimization",
-    description="Analyze pricing strategies, calculate price elasticity, and identify revenue optimization opportunities",
+    description="ALWAYS use this skill for ANY question about brand performance, pricing, competition, or how a brand is doing. Run this skill immediately without asking clarifying questions - defaults are already set.",
     capabilities="Price analysis, price elasticity calculation, competitive pricing comparison, optimal price recommendations, revenue impact simulation, price-volume tradeoffs, regional pricing analysis, brand positioning analysis",
     limitations="Requires sales, units/volume data. Elasticity calculations need sufficient price variation. Assumes other factors constant.",
     example_questions="What's the optimal price for Barilla pasta? How elastic is demand for premium pasta? Compare average prices across brands. What would happen to revenue if we increased price by 10%? Which products are underpriced? Show price vs volume tradeoff for organic segment.",
