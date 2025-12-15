@@ -229,7 +229,7 @@ Be direct and specific. Use the data provided. **250 words maximum.**"""
     # Execute query
     try:
         client = AnswerRocketClient()
-        result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
+        result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=50000)
 
         print(f"DEBUG: Query result success: {result.success if hasattr(result, 'success') else 'Unknown'}")
 
@@ -390,7 +390,7 @@ Be direct and specific. Use the data provided. **250 words maximum.**"""
 
         sql_query += f" GROUP BY {dimension}, base_size, brand, month_new"
 
-        result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=10000)
+        result = client.data.execute_sql_query(DATABASE_ID, sql_query, row_limit=50000)
 
         if not result.success or not hasattr(result, 'df'):
             error_msg = result.error if hasattr(result, 'error') else 'Unknown error'
