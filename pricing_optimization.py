@@ -96,7 +96,7 @@ def pricing_optimization(parameters: SkillInput):
     """Pricing optimization analysis"""
 
     # Extract parameters
-    dimension = parameters.arguments.dimension or "base_size"
+    dimension = "base_size"
     filters = parameters.arguments.filters or []
     start_date = parameters.arguments.start_date
     end_date = parameters.arguments.end_date
