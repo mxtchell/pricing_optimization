@@ -40,19 +40,19 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             constrained_to="filters",
             is_multi=True,
             description="Filters to apply (e.g., specific brands, segments, regions)",
-            default_value=[]
+            default_value=[{"dim": "sub_category", "val": ["SEMOLINA"]}]
         ),
         SkillParameter(
             name="start_date",
             constrained_to="date_filter",
             description="Start date for analysis",
-            default_value=None
+            default_value="2024-01-01"
         ),
         SkillParameter(
             name="end_date",
             constrained_to="date_filter",
             description="End date for analysis",
-            default_value=None
+            default_value="2024-12-31"
         ),
         SkillParameter(
             name="analysis_type",
