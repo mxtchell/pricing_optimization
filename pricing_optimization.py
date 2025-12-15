@@ -39,8 +39,8 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             name="filters",
             constrained_to="filters",
             is_multi=True,
-            description="Filters to apply (e.g., specific brands, segments, regions)",
-            default_value=[{"dim": "sub_category", "val": ["SEMOLINA"]}]
+            description="Filters to apply (e.g., specific brands, segments, regions). Defaults to SEMOLINA subcategory if not specified.",
+            default_value=[]
         ),
         SkillParameter(
             name="start_date",
@@ -117,6 +117,16 @@ def pricing_optimization(parameters: SkillInput):
 3. **Pack Opportunities**: Which specific packs should the brand adjust pricing on to gain share/sales?
 
 Be direct and specific. Use the data provided. **250 words maximum.**"""
+
+    # Apply default subcategory filter if none specified
+    has_subcategory_filter = any(
+        isinstance(f, dict) and f.get('dim') == 'sub_category'
+        for f in filters
+    )
+    if not has_subcategory_filter:
+        filters = list(filters) if filters else []
+        filters.append({'dim': 'sub_category', 'val': ['SEMOLINA']})
+        print("DEBUG: Applied default subcategory filter: SEMOLINA")
 
     print(f"Running pricing optimization: {analysis_type} by {dimension}")
 
