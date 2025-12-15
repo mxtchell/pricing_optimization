@@ -36,7 +36,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             default_value="base_size"
         ),
         SkillParameter(
-            name="filters",
+            name="other_filters",
             constrained_to="filters",
             is_multi=True,
             description="Filters to apply. MUST include brand filter when a brand is mentioned in the question (e.g. brand=BARILLA). Defaults to SEMOLINA subcategory.",
@@ -97,7 +97,7 @@ def pricing_optimization(parameters: SkillInput):
 
     # Extract parameters
     dimension = "base_size"
-    filters = parameters.arguments.filters or []
+    filters = parameters.arguments.other_filters or []
     start_date = parameters.arguments.start_date
     end_date = parameters.arguments.end_date
     analysis_type = parameters.arguments.analysis_type or "price_comparison"
