@@ -27,7 +27,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
     capabilities="Price analysis, price elasticity calculation, competitive pricing comparison, optimal price recommendations, revenue impact simulation, price-volume tradeoffs, regional pricing analysis, brand positioning analysis",
     limitations="Requires sales, units/volume data. Elasticity calculations need sufficient price variation. Assumes other factors constant.",
     example_questions="What's the optimal price for Barilla pasta? How elastic is demand for premium pasta? Compare average prices across brands. What would happen to revenue if we increased price by 10%? Which products are underpriced? Show price vs volume tradeoff for organic segment.",
-    parameter_guidance="Select dimension for analysis (brand, segment, sub_category, state). Specify time period for analysis. Apply filters as needed. For elasticity, ensure sufficient price variation in data.",
+    parameter_guidance="IMPORTANT: When a brand is mentioned in the question (e.g. 'how is Barilla performing'), you MUST add it as a brand filter. Always extract brand names from the question and include them in filters.",
     parameters=[
         SkillParameter(
             name="dimension",
@@ -39,7 +39,7 @@ DATABASE_ID = os.getenv('DATABASE_ID', '83c2268f-af77-4d00-8a6b-7181dc06643e')
             name="filters",
             constrained_to="filters",
             is_multi=True,
-            description="Filters to apply (e.g., specific brands, segments, regions). Defaults to SEMOLINA subcategory if not specified.",
+            description="Filters to apply. MUST include brand filter when a brand is mentioned in the question (e.g. brand=BARILLA). Defaults to SEMOLINA subcategory.",
             default_value=[]
         ),
         SkillParameter(
